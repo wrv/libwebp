@@ -75,7 +75,9 @@ RANLIB=${WASI_SDK_PATH}/bin/ranlib \
 --prefix=${curprefix} \
 --enable-libwebpdemux \
 --enable-libwebpmux \
---enable-libwebpdecoder
+--enable-libwebpdecoder \
+--disable-sse4.1 \
+--disable-sse2
 make
 make install
 

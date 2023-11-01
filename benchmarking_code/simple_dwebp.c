@@ -67,60 +67,24 @@ static int SaveOutput(const WebPDecBuffer* const buffer,
   return ok;
 }
 
-static void Help(void) {
-  printf("Usage: dwebp in_file [options] [-o out_file]\n\n"
-         "Decodes the WebP image file to YUV format [Default].\n"
-         "Note: Animated WebP files are not supported.\n\n"
-        );
-}
-
 static const char* const kFormatType[] = {
   "unspecified", "lossy", "lossless"
 };
 
 
-int main(int argc, const char* argv[]) {
+int timed_decode(const char* in_file, const char* out_file) {
   int ok = 0;
-  const char* in_file = NULL;
-  const char* out_file = NULL;
-
+  const uint8_t* data = NULL;
   WebPDecoderConfig config;
   WebPDecBuffer* const output_buffer = &config.output;
   WebPBitstreamFeatures* const bitstream = &config.input;
   WebPOutputFileFormat format = RAW_YUV;
-  const uint8_t* data = NULL;
 
-  int c;
-  printf("Webp version 1.2.2\n");
-
-  if (!WebPInitDecoderConfig(&config)) {
+    if (!WebPInitDecoderConfig(&config)) {
     fprintf(stderr, "Library version mismatch!\n");
     return -1;
   }
 
-  for (c = 1; c < argc; ++c) {
-    if (!strcmp(argv[c], "-h") || !strcmp(argv[c], "-help")) {
-      Help();
-      return 0;
-    } else if (!strcmp(argv[c], "-o") && c < argc - 1) {
-      out_file = (const char*) argv[++c];
-    } else if (!strcmp(argv[c], "--")) {
-      if (c < argc - 1) in_file = (const char*)argv[++c];
-      break;
-    } else if (argv[c][0] == '-') {
-      fprintf(stderr, "Unknown option '%s'\n", argv[c]);
-      Help();
-      return -1;
-    } else {
-      in_file = (const char*)argv[c];
-    }
-  }
-
-  if (in_file == NULL) {
-    fprintf(stderr, "missing input file!!\n");
-    Help();
-    return -1;
-  }
 
   VP8StatusCode status = VP8_STATUS_OK;
   size_t data_size = 0;
@@ -165,6 +129,48 @@ int main(int argc, const char* argv[]) {
   WebPFreeDecBuffer(output_buffer);
   WebPFree((void*)data);
   return ok ? 0 : -1;
+}
+
+static void Help(void) {
+  printf("Usage: dwebp in_file [options] [-o out_file]\n\n"
+         "Decodes the WebP image file to YUV format [Default].\n"
+         "Note: Animated WebP files are not supported.\n\n"
+        );
+}
+
+int main(int argc, const char* argv[]) {
+  const char* in_file = NULL;
+  const char* out_file = NULL;
+
+  printf("Webp version 1.2.2\n");
+
+  for (int c = 1; c < argc; ++c) {
+    if (!strcmp(argv[c], "-h") || !strcmp(argv[c], "-help")) {
+      Help();
+      return 0;
+    } else if (!strcmp(argv[c], "-o") && c < argc - 1) {
+      out_file = (const char*) argv[++c];
+    } else if (!strcmp(argv[c], "--")) {
+      if (c < argc - 1) in_file = (const char*)argv[++c];
+      break;
+    } else if (argv[c][0] == '-') {
+      fprintf(stderr, "Unknown option '%s'\n", argv[c]);
+      Help();
+      return -1;
+    } else {
+      in_file = (const char*)argv[c];
+    }
+  }
+
+  if (in_file == NULL) {
+    fprintf(stderr, "missing input file!!\n");
+    Help();
+    return -1;
+  }
+
+  timed_decode(in_file, out_file);
+
+  return 0;
 }
 
 //------------------------------------------------------------------------------

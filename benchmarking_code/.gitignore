@@ -1,0 +1,5 @@
+simple_dwebp_native*
+simple_dwebp_nativesimd*
+simple_dwebp_wasm*
+simple_dwebp_wasmsimd*
+outputs/
