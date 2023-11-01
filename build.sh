@@ -4,12 +4,11 @@
 # - wasi-sdk: https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-20/wasi-sdk-20.0-linux.tar.gz
 # - wabt: https://github.com/WebAssembly/wabt/releases/download/1.0.34/wabt-1.0.34-ubuntu.tar.gz
 # - simde: https://github.com/simd-everywhere/simde/archive/refs/tags/v0.7.6.tar.gz
+# - uvwasi: https://github.com/nodejs/uvwasi/archive/refs/tags/v0.0.19.tar.gz
 
-export WASI_SDK_PATH=/home/dev/research/wasi-sdk-20.0
-export SIMDE_PATH=/home/dev/research/simde-0.7.6
-export WABT_PATH=/home/dev/research/wabt-1.0.34
-export curdir=$(pwd)
-
+WASI_SDK_PATH=/home/dev/research/wasi-sdk-20.0
+SIMDE_PATH=/home/dev/research/simde-0.7.6
+curdir=$(pwd)
 
 ./autogen.sh
 
@@ -17,12 +16,12 @@ export curdir=$(pwd)
 
 make clean > /dev/null
 echo "Building Native version of libwebp"
-export curprefix=${curdir}/libwebp_native
+curprefix=${curdir}/libwebp_native
 
 mkdir -p ${curprefix}
 
 # Note: this still emits SSE instructions, though
-#    it should not rely on the SSE optimized code. 
+#    it should not rely on the SSE optimized code.
 #    We leave out `-mno-sse` because we get the following
 #    error when we include it:
 #    sharpyuv_csp.c:18:45: error: SSE register return with SSE disabled
@@ -37,12 +36,10 @@ CFLAGS="-mno-avx -mno-mmx" \
 make
 make install
 
-
 #################################################
-
 make clean > /dev/null
 echo "Building Native+SIMD version of libwebp"
-export curprefix=${curdir}/libwebp_nativesimd
+curprefix=${curdir}/libwebp_nativesimd
 mkdir -p ${curprefix}
 
 ./configure \
@@ -55,12 +52,10 @@ mkdir -p ${curprefix}
 make
 make install
 
-
 #################################################
-
 make clean > /dev/null
 echo "Building WASM version of libwebp"
-export curprefix=${curdir}/libwebp_wasm 
+curprefix=${curdir}/libwebp_wasm
 mkdir -p ${curprefix}
 
 CFLAGS="-D_WASI_EMULATED_SIGNAL" \
@@ -84,17 +79,10 @@ RANLIB=${WASI_SDK_PATH}/bin/ranlib \
 make
 make install
 
-echo "Making WASM2C version of dwebp"
-${WABT_PATH}/bin/wasm2c ${curprefix}/bin/dwebp -o ${curprefix}/bin/dwebp_wasm.c
-
-gcc -o ${curprefix}/bin/dwebp_wasm -I${WABT_PATH}/include -I${SIMDE_PATH} ${curprefix}/bin/dwebp_wasm.c ${WABT_PATH}/share/wabt/wasm2c/wasm-rt-impl.c ${WABT_PATH}/share/wabt/wasm2c/wasm-rt-exceptions-impl.c -mavx -lm
-
 #################################################
-
-
 make clean > /dev/null
 echo "Building WASM+SIMD version of libwebp"
-export curprefix=${curdir}/libwebp_wasmsimd
+curprefix=${curdir}/libwebp_wasmsimd
 mkdir -p ${curprefix}
 
 CFLAGS="-msimd128 -DWEBP_USE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -I${SIMDE_PATH} -D_WASI_EMULATED_SIGNAL" \
@@ -120,9 +108,3 @@ RANLIB=${WASI_SDK_PATH}/bin/ranlib \
 
 make
 make install
-
-
-echo "Making WASM2C version of dwebp-simd"
-${WABT_PATH}/bin/wasm2c ${curprefix}/bin/dwebp -o ${curprefix}/bin/dwebp_wasm.c
-
-gcc -o ${curprefix}/bin/dwebp_wasm -I${WABT_PATH}/include -I${SIMDE_PATH} ${curprefix}/bin/dwebp_wasm.c ${WABT_PATH}/share/wabt/wasm2c/wasm-rt-impl.c ${WABT_PATH}/share/wabt/wasm2c/wasm-rt-exceptions-impl.c -mavx -lm
