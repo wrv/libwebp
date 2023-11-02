@@ -67,6 +67,6 @@ int main(int argc, const char** argv) {
   wasm_rt_free();
 
   free(init_options.preopens);
-  
+
   return 0;
 }
