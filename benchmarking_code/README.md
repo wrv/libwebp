@@ -33,6 +33,8 @@ The only difference between the above instructions and the ones in the uvwasi RE
 required on an Ubuntu 22.04 VM.
 
 
+The analysis script `benchmarking_code/stat_analysis.py` requires numpy and matplotlib. These can be installed with  `pip install numpy matplotlib`.
+
 ### Building libwebp variants
 
 In `build.sh` found in the top-most directory, change the following environment variables:
@@ -44,10 +46,10 @@ UVWASI_PATH=/path/to/uvwasi-0.0.19
 ```
 
 With those set, run `./build.sh`. This directory will contain the following binaries used for benchmarking:
-- `simple_dwebp_native`: Native non-SIMD
-- `simple_dwebp_nativesimd`: Native SIMD
-- `simple_dwebp_wasm`: WASM non-SIMD
-- `simple_dwebp_wasmsimd`: WASM SIMD
+- `decode_webp_native`: Native non-SIMD
+- `decode_webp_nativesimd`: Native SIMD
+- `decode_webp_wasm`: WASM non-SIMD
+- `decode_webp_wasmsimd`: WASM SIMD
 
 ## Running benchmarks
 

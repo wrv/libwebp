@@ -1,5 +1,6 @@
-simple_dwebp_native*
-simple_dwebp_nativesimd*
-simple_dwebp_wasm*
-simple_dwebp_wasmsimd*
+decode_webp_native*
+decode_webp_nativesimd*
+decode_webp_wasm*
+decode_webp_wasmsimd*
 outputs/
+benchmark_log.txt
