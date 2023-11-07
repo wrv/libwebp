@@ -50,13 +50,12 @@ int load_data(const char* const in_file,
 
 int main(int argc, const char** argv) {
   const char* in_file = NULL;
-  const char* out_file = NULL;
   const char* out_time_file = NULL;
 
   printf("WASMSIMD Webp version 1.2.2\n");
 
-  if (argc < 4) {
-    printf("Usage: dwebp in_file [input_file] [output_file] [output_time]\n\n"
+  if (argc < 3) {
+    printf("Usage: dwebp in_file [input_file] [output_time file]\n\n"
         "Decodes the WebP image file to YUV format [Default].\n"
         "Note: Animated WebP files are not supported.\n\n"
       );
@@ -64,8 +63,7 @@ int main(int argc, const char** argv) {
   }
 
   in_file = argv[1];
-  out_file = argv[2];
-  out_time_file = argv[3];
+  out_time_file = argv[2];
 
   FILE *out_time = fopen(out_time_file, "a");
   if (!out_time) {

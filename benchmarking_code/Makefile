@@ -14,7 +14,7 @@ WASM2C_INCLUDE=-I${WABT_PATH}/include -I${UVWASI_PATH}/include
 NATIVE_SIMD_FLAGS=-I${SIMDE_PATH} -mavx
 WASM_SIMD_FLAGS=-msimd128 -I${SIMDE_PATH}
 BUILD_INCLUDE=-I../libwebp_$@/include/ -L../libwebp_$@/lib/ -lwebp
-COMPILE_FLAGS=-O3
+COMPILE_FLAGS=-O3 -g -fxray-instrument
 
 .PHONY: native nativesimd wasm wasmsimd benchmark
 
@@ -36,5 +36,15 @@ wasm: main_wasm.c decode_webp.c
 
 wasmsimd: main_wasmsimd.c decode_webp.c
 	${WASI_CLANG} ${WASI_LDFLAGS} ${WASI_FLAGS} decode_webp.c -o decode_webp_$@.wasm ${BUILD_INCLUDE} ${WASM_SIMD_FLAGS}
+	${WASM2C_BIN} decode_webp_$@.wasm -o decode_webp_$@.c
+	clang ${COMPILE_FLAGS} -o decode_webp_$@ ${WASM2C_INCLUDE} main_$@.c decode_webp_$@.c ${WASM2C_DEP} ${NATIVE_SIMD_FLAGS}
+
+wasmsimd_sse2: main_wasmsimd.c decode_webp.c
+	${WASI_CLANG} ${WASI_LDFLAGS} ${WASI_FLAGS} decode_webp.c -o decode_webp_$@.wasm ${BUILD_INCLUDE} ${WASM_SIMD_FLAGS}
+	${WASM2C_BIN} decode_webp_$@.wasm -o decode_webp_$@.c
+	clang ${COMPILE_FLAGS} -o decode_webp_$@ ${WASM2C_INCLUDE} main_$@.c decode_webp_$@.c ${WASM2C_DEP} ${NATIVE_SIMD_FLAGS}
+
+wasmsimd_sse41: main_wasmsimd.c decode_webp.c
+	${WASI_CLANG} ${WASI_LDFLAGS} ${WASI_FLAGS} decode_webp.c -o decode_webp_$@.wasm -I../libwebp_$@/include/ -L../libwebp_$@/lib/ -lwebp ${WASM_SIMD_FLAGS}
 	${WASM2C_BIN} decode_webp_$@.wasm -o decode_webp_$@.c
 	clang ${COMPILE_FLAGS} -o decode_webp_$@ ${WASM2C_INCLUDE} main_$@.c decode_webp_$@.c ${WASM2C_DEP} ${NATIVE_SIMD_FLAGS}

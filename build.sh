@@ -24,3 +24,6 @@ curdir=$(pwd)
 
 #################################################
 ./build_wasmsimd.sh
+
+./build_wasmsimd_sse2.sh
+./build_wasmsimd_sse41.sh
