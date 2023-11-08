@@ -1,9 +1,9 @@
 if [ "$WASI_SDK_PATH" == "" ]; then
-    WASI_SDK_PATH=/home/dev/research/wasi-sdk-20.0
+    WASI_SDK_PATH=/home/wrv/research/wasmperf/wasi-sdk-20.0
 fi
 
 if [ "$SIMDE_PATH" == "" ]; then
-    SIMDE_PATH=/home/dev/research/simde-0.7.6
+    SIMDE_PATH=/home/wrv/research/wasmperf/simde-0.7.6
 fi
 
 make clean > /dev/null
@@ -26,9 +26,13 @@ RANLIB=${WASI_SDK_PATH}/bin/ranlib \
 --with-sysroot=${WASI_SDK_PATH}/share/wasi-sysroot \
 --host=wasm32 \
 --prefix=${curprefix} \
---enable-libwebpdemux \
---enable-libwebpmux \
---enable-libwebpdecoder \
+--disable-libwebpdemux \
+--disable-libwebpmux \
+--disable-libwebpdecoder \
+--disable-png \
+--disable-tiff \
+--disable-jpeg \
+--disable-threading \
 --enable-sse2 \
 --enable-sse4.1
 
@@ -39,3 +43,6 @@ sed -i 's|/\* #undef WEBP_HAVE_SSE2 \*/|#define WEBP_HAVE_SSE2 1|' src/webp/conf
 
 make
 make install
+
+# Backup the config file
+cp src/webp/config.h ${curprefix}/config.h

@@ -5,3 +5,4 @@ decode_webp_wasmsimd*
 outputs/
 benchmark_log.txt
 xray-log.*
+tmp/

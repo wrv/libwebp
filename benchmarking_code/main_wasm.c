@@ -1,52 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "decode_webp_wasm.h"
-#include "uvwasi.h"
-#include "uvwasi-rt.h"
-
-
-int load_data(const char* const in_file,
-             const uint8_t** data, size_t* data_size) {
-  int ok;
-  uint8_t* file_data;
-  size_t file_size;
-  FILE* in;
-
-  *data = NULL;
-  *data_size = 0;
-
-  in = fopen(in_file, "rb");
-  if (in == NULL) {
-    fprintf(stderr, "cannot open input file '%s'\n", (const char*)in_file);
-    return 0;
-  }
-  fseek(in, 0, SEEK_END);
-  file_size = ftell(in);
-  fseek(in, 0, SEEK_SET);
-  // we allocate one extra byte for the \0 terminator
-  file_data = (uint8_t*)malloc(file_size + 1);
-  if (file_data == NULL) {
-    fclose(in);
-    fprintf(stderr, "memory allocation failure when reading file %s\n",
-             (const char*)in_file);
-    return 0;
-  }
-  ok = (fread(file_data, file_size, 1, in) == 1);
-  fclose(in);
-
-  if (!ok) {
-    fprintf(stderr, "Could not read %d bytes of data from file %s\n",
-             (int)file_size, (const char*)in_file);
-    free(file_data);
-    return 0;
-  }
-  file_data[file_size] = '\0';  // convenient 0-terminator
-  *data = file_data;
-  *data_size = file_size;
-
-  return 1;
-}
+#include "helpers.h"
 
 int main(int argc, const char** argv) {
   const char* in_file = NULL;
@@ -81,21 +34,8 @@ int main(int argc, const char** argv) {
   /* Declare an instance of the `inst` module. */
   w2c_decode__webp__wasm inst = { 0 };
 
-  uvwasi_t local_uvwasi_state = {0};
-  struct w2c_wasi__snapshot__preview1 wasi_env = {
-    .uvwasi = &local_uvwasi_state,
-    .instance_memory = &inst.w2c_memory
-  };
-
-  uvwasi_options_t init_options;
-  uvwasi_options_init(&init_options);
-  uvwasi_errno_t ret = uvwasi_init(&local_uvwasi_state, &init_options);
-  if (ret != UVWASI_ESUCCESS) {
-    printf("uvwasi_init failed with error %d\n", ret);
-    exit(1);
-  }
   /* Construct the module instance. */
-  wasm2c_decode__webp__wasm_instantiate(&inst, &wasi_env);
+  wasm2c_decode__webp__wasm_instantiate(&inst);
 
   wasm_rt_memory_t* mem = w2c_decode__webp__wasm_memory(&inst);
 
@@ -108,19 +48,31 @@ int main(int argc, const char** argv) {
   // Copy data to sandbox memory
   memcpy(&(mem->data[webp_file]), data, data_size);
 
-  // Call decode
-  double dt = 0.0;
-  dt = w2c_decode__webp__wasm_DecodeWebpImage(&inst, webp_file, data_size);
+  /////////////////////////////////////////////////////////////////////
+  // Get an address to which config can be set
+  u32 config = w2c_decode__webp__wasm_malloc(&inst, data_size);
 
+  w2c_decode__webp__wasm_SetupWebpDecode(&inst, webp_file, data_size, config);
+
+  if (config == 0) {
+    printf("Failed to initialize WebpDecoder\n");
+    return -1;
+  }
+
+  Stopwatch stop_watch;
+  StopwatchReset(&stop_watch);
+  w2c_decode__webp__wasm_DecodeWebpImage(&inst, webp_file, data_size, config);
+  const double dt = StopwatchReadAndReset(&stop_watch);
   fprintf(stderr, "Time to decode pictures: %.10fs\n", dt);
   fprintf(out_time, "%f\n", dt);
 
+  w2c_decode__webp__wasm_CleanupWebpDecode(&inst, config);
+  /////////////////////////////////////////////////////////////////////
 EXIT:
   fclose(out_time);
   free((void*)data);
   /* Free the inst module. */
   wasm2c_decode__webp__wasm_free(&inst);
-  uvwasi_destroy(&local_uvwasi_state);
   /* Free the Wasm runtime state. */
   wasm_rt_free();
   return 0;

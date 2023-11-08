@@ -1,14 +1,14 @@
 if [ "$WASI_SDK_PATH" == "" ]; then
-    WASI_SDK_PATH=/home/dev/research/wasi-sdk-20.0
+    WASI_SDK_PATH=/home/wrv/research/wasmperf/wasi-sdk-20.0
 fi
 
 if [ "$SIMDE_PATH" == "" ]; then
-    SIMDE_PATH=/home/dev/research/simde-0.7.6
+    SIMDE_PATH=/home/wrv/research/wasmperf/simde-0.7.6
 fi
 
 make clean > /dev/null
 echo "Building WASM+SIMD version of libwebp"
-curprefix=$(pwd)/libwebp_wasmsimd_sse2
+curprefix=$(pwd)/libwebp_wasmsimd
 mkdir -p ${curprefix}
 
 CFLAGS="-msimd128 -DWEBP_USE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -I${SIMDE_PATH} -D_WASI_EMULATED_SIGNAL" \
@@ -26,9 +26,13 @@ RANLIB=${WASI_SDK_PATH}/bin/ranlib \
 --with-sysroot=${WASI_SDK_PATH}/share/wasi-sysroot \
 --host=wasm32 \
 --prefix=${curprefix} \
---enable-libwebpdemux \
---enable-libwebpmux \
---enable-libwebpdecoder \
+--disable-libwebpdemux \
+--disable-libwebpmux \
+--disable-libwebpdecoder \
+--disable-png \
+--disable-tiff \
+--disable-jpeg \
+--disable-threading \
 --enable-sse2
 
 # Apply patch to enable SSE4.1 and SSE2
@@ -38,3 +42,6 @@ sed -i 's|/\* #undef WEBP_HAVE_SSE2 \*/|#define WEBP_HAVE_SSE2 1|' src/webp/conf
 
 make
 make install
+
+# Backup the config file
+cp src/webp/config.h ${curprefix}/config.h

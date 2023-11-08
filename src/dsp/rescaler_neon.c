@@ -15,7 +15,11 @@
 
 #if defined(WEBP_USE_NEON) && !defined(WEBP_REDUCE_SIZE)
 
+#if defined(WEBP_USE_SIMDE)
+#include "simde/arm/neon.h"
+#else
 #include <arm_neon.h>
+#endif
 #include <assert.h>
 #include "src/dsp/neon.h"
 #include "src/utils/rescaler_utils.h"

@@ -17,7 +17,11 @@
 
 #if defined(WEBP_USE_NEON) && !defined(WEBP_ANDROID_NEON) && \
     !defined(WEBP_HAVE_NEON_RTCD)
+#if defined(WEBP_USE_SIMDE)
+#include "simde/arm/neon.h"
+#else
 #include <arm_neon.h>
+#endif
 
 #define IsFlat IsFlat_NEON
 

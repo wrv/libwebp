@@ -5,10 +5,21 @@ mkdir -p ${curprefix}
 
 ./configure \
 --prefix=${curprefix} \
---enable-libwebpdemux \
---enable-libwebpmux \
---enable-libwebpdecoder \
---enable-sse4.1 \
---enable-sse2
+--disable-libwebpdemux \
+--disable-libwebpmux \
+--disable-libwebpdecoder \
+--disable-png \
+--disable-tiff \
+--disable-jpeg \
+--disable-threading \
+--enable-sse2 \
+--disable-sse4.1
+
+sed -i 's|#define HAVE_DLFCN_H 1|/\* #undef HAVE_DLFCN_H \*/|' src/webp/config.h
+
+
 make
 make install
+
+# Backup the config file
+cp src/webp/config.h ${curprefix}/config.h

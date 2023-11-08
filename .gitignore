@@ -55,7 +55,4 @@ tests/fuzzer/enc_dec_fuzzer
 tests/fuzzer/mux_demux_api_fuzzer
 tests/fuzzer/simple_api_fuzzer
 configure~
-libwebp_native/
-libwebp_nativesimd/
-libwebp_wasm/
-libwebp_wasmsimd/
+libwebp_*/

@@ -16,7 +16,11 @@
 #if defined(WEBP_USE_NEON)
 #include <assert.h>
 #include <stdlib.h>
+#if defined(WEBP_USE_SIMDE)
+#include "simde/arm/neon.h"
+#else
 #include <arm_neon.h>
+#endif
 
 static uint16_t clip_NEON(int v, int max) {
   return (v < 0) ? 0 : (v > max) ? max : (uint16_t)v;

@@ -16,7 +16,11 @@
 
 #if defined(WEBP_USE_NEON)
 
+#if defined(WEBP_USE_SIMDE)
+#include "simde/arm/neon.h"
+#else
 #include <arm_neon.h>
+#endif
 
 // Right now, some intrinsics functions seem slower, so we disable them
 // everywhere except newer clang/gcc or aarch64 where the inline assembly is

@@ -4,7 +4,8 @@ import sys
 import os
 import matplotlib.pyplot as plt
 
-results_dir = "results/"
+input_dir = "inputs_less/"
+results_dir = "results_less/"
 test_types = ["native", "nativesimd", "wasm", "wasmsimd"]
 MIN = 0.0
 MAX = 20.0
@@ -22,7 +23,7 @@ def get_improvement(hi, lo, performance):
 
 def generate_data():
   data = {}
-  input_filenames = os.listdir("inputs")
+  input_filenames = os.listdir(input_dir)
   for f in input_filenames:
     data[f] = {}
     for t in test_types:

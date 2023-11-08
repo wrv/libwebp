@@ -16,8 +16,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <sys/time.h>
 
 #include "decode_webp.h"
+
+typedef struct timeval Stopwatch;
+
+static inline void StopwatchReset(Stopwatch* watch) {
+  gettimeofday(watch, NULL);
+}
+
+static inline double StopwatchReadAndReset(Stopwatch* watch) {
+  struct timeval old_value;
+  double delta_sec, delta_usec;
+  memcpy(&old_value, watch, sizeof(old_value));
+  gettimeofday(watch, NULL);
+  delta_sec = (double)watch->tv_sec - old_value.tv_sec;
+  delta_usec = (double)watch->tv_usec - old_value.tv_usec;
+  return delta_sec + delta_usec / 1000000.0;
+}
+
 
 int load_data(const char* const in_file,
              const uint8_t** data, size_t* data_size) {
@@ -91,11 +109,23 @@ int main(int argc, const char* argv[]) {
     return -1;
   }
 
-  double dt = DecodeWebpImage(data, data_size);
-  fprintf(stderr, "Time to decode pictures: %.10fs\n", dt);
+  void* config;
+  
+  SetupWebpDecode(data, data_size, &config);
 
+  if (config == NULL) {
+    printf("Failed to initialize WebpDecoder\n");
+    return -1;
+  }
+
+  Stopwatch stop_watch;
+  StopwatchReset(&stop_watch);
+  DecodeWebpImage(data, data_size, config);
+  const double dt = StopwatchReadAndReset(&stop_watch);
+  fprintf(stderr, "Time to decode pictures: %.10fs\n", dt);
   fprintf(out_time, "%f\n", dt);
   fclose(out_time);
+  CleanupWebpDecode(config);
   free((void*)data);
   return 0;
 }

@@ -12,10 +12,20 @@ mkdir -p ${curprefix}
 CFLAGS="-mno-avx -mno-mmx" \
 ./configure \
 --prefix=${curprefix} \
---enable-libwebpdemux \
---enable-libwebpmux \
---enable-libwebpdecoder \
+--disable-libwebpdemux \
+--disable-libwebpmux \
+--disable-libwebpdecoder \
+--disable-png \
+--disable-tiff \
+--disable-jpeg \
+--disable-threading \
 --disable-sse4.1 \
 --disable-sse2
+
+sed -i 's|#define HAVE_DLFCN_H 1|/\* #undef HAVE_DLFCN_H \*/|' src/webp/config.h
+
+
 make
 make install
+
+cp src/webp/config.h ${curprefix}/config.h

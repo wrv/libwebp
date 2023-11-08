@@ -17,7 +17,11 @@
 #if defined(WEBP_USE_NEON)
 
 #include <assert.h>
+#if defined(WEBP_USE_SIMDE)
+#include "simde/arm/neon.h"
+#else
 #include <arm_neon.h>
+#endif
 #include <string.h>
 #include "src/dsp/neon.h"
 #include "src/dsp/yuv.h"

@@ -3,7 +3,7 @@ logname=benchmark_log.txt
 
 echo "" > ${logname}
 
-
+mkdir -p results/
 
 for IMAGE in inputs/*.webp;
 do
@@ -13,8 +13,8 @@ do
         rm results/${imagename}_${testname}.csv > /dev/null 2>&1
         for i in $(seq 1 $N)
         do
-            echo ./decode_webp_${testname} inputs/${imagename} outputs/${imagename}.yuv results/${imagename}_${testname}.csv >> ${logname}
-            ./decode_webp_${testname} inputs/${imagename} outputs/${imagename}_${testname}_${i}.yuv results/${imagename}_${testname}.csv >> ${logname} 2>&1
+            echo ./decode_webp_${testname} inputs/${imagename} results/${imagename}_${testname}.csv >> ${logname}
+            ./decode_webp_${testname} inputs/${imagename} results/${imagename}_${testname}.csv >> ${logname} 2>&1
         done
         python3 stat_analysis.py "results/${imagename}_${testname}.csv" "results/${imagename}_${testname}_stats.txt" "${imagename} with ${testname}" "results/${imagename}_${testname}_stats.png"
     done

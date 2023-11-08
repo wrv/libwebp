@@ -15,7 +15,11 @@
 
 #if defined(WEBP_USE_NEON)
 
+#if defined(WEBP_USE_SIMDE)
+#include "simde/arm/neon.h"
+#else
 #include <arm_neon.h>
+#endif
 
 #include "src/dsp/lossless.h"
 #include "src/dsp/neon.h"
