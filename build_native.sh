@@ -9,7 +9,7 @@ mkdir -p ${curprefix}
 #    We leave out `-mno-sse` because we get the following
 #    error when we include it:
 #    sharpyuv_csp.c:18:45: error: SSE register return with SSE disabled
-CFLAGS="-mno-avx -mno-mmx" \
+CFLAGS="-O2" \
 ./configure \
 --prefix=${curprefix} \
 --disable-libwebpdemux \

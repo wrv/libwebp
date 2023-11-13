@@ -3,6 +3,7 @@ echo "Building Native+SIMD version of libwebp"
 curprefix=$(pwd)/libwebp_nativesimd
 mkdir -p ${curprefix}
 
+CFLAGS="-O2" \
 ./configure \
 --prefix=${curprefix} \
 --disable-libwebpdemux \

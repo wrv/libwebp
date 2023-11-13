@@ -10,7 +10,7 @@ WASM2C_DEP=${WABT_PATH}/share/wabt/wasm2c/wasm-rt-impl.c ${WABT_PATH}/share/wabt
 WASM2C_INCLUDE=-I${WABT_PATH}/include -I${SIMDE_PATH}
 WASM_SIMD_FLAGS=-msimd128 -I${SIMDE_PATH}
 BUILD_INCLUDE=-I../libwebp_$@/include/ -L../libwebp_$@/lib/ -lwebp -I${SIMDE_PATH}
-COMPILE_FLAGS=-O3 -mavx -g -fxray-instrument -static
+COMPILE_FLAGS=-O3 -g -fxray-instrument -mavx2 -static
 
 COMPILE_NATIVE=clang ${COMPILE_FLAGS} decode_webp.c main_native.c -o decode_webp_$@ ${BUILD_INCLUDE}
 COMPILE_WASI_CLANG=${WASI_CLANG} ${WASI_LDFLAGS} ${WASI_FLAGS} decode_webp.c -o decode_webp_$@.wasm ${BUILD_INCLUDE}

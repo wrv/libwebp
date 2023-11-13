@@ -23,7 +23,7 @@
 #endif
 
 #if defined(WEBP_USE_SIMDE)
-#include "simde/x86/sse2.h"
+#include "simde/x86/avx2.h"
 #else
 #include <emmintrin.h>
 #endif

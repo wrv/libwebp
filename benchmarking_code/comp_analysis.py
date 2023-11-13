@@ -111,7 +111,7 @@ def generate_bar(data):
     y_axis = np.zeros(len(data[f]))
     err_val = np.zeros(len(data[f]))
     for i in range(len(data[f].values())):
-      y_axis[i] = round(data[f][x_axis[i]][0], 2)
+      y_axis[i] = round(data[f][x_axis[i]][0], 4)
       err_val[i] = np.std(data[f][x_axis[i]][1], ddof=1) / np.sqrt(np.size(data[f][x_axis[i]][1]))
 
     print(x_axis)
