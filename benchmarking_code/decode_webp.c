@@ -1,39 +1,22 @@
 #include "decode_webp.h"
 
 // Uncommenting this out saves the image to out.ppm
-//#define OUTPUTIMAGE
+//#define OUTPUT_IMAGE
 
-#ifdef OUTPUTIMAGE
+#ifdef OUTPUT_IMAGE
 #include <stdio.h>
 #endif
 
 extern void* VP8GetCPUInfo;   // opaque forward declaration.
 
-int SetupWebpDecode(const uint8_t* data, size_t data_size, const void** config) {
-  int ok = 0;
-  WebPDecoderConfig new_config;
-  WebPDecBuffer* const output_buffer = &new_config.output;
-  WebPBitstreamFeatures* const bitstream = &new_config.input;
-
-  WebPInitDecoderConfig(&new_config);
-
-  VP8StatusCode status = VP8_STATUS_OK;
-  status = WebPGetFeatures(data, data_size, bitstream);
-  
-  if (status != VP8_STATUS_OK) {
-    return -1;
-  }
-  // Appropriate colorspace for PPM output stream
-  output_buffer->colorspace = MODE_RGB;
-  *config = &new_config;
-
-  return 0;
-}
-
-int DecodeWebpImage(const uint8_t* data, size_t data_size, const void* c, int iterations, uint8_t** result, size_t* result_size) {
+int DecodeWebpImage(const uint8_t* data, size_t data_size, int iterations, uint8_t** result, size_t* result_size) {
   int ok = 0;
   VP8StatusCode status;
-  WebPDecoderConfig config = *((WebPDecoderConfig *) c);
+  WebPDecoderConfig config;
+  WebPDecBuffer* const output_buffer = &config.output;
+  WebPBitstreamFeatures* const bitstream = &config.input;
+  WebPInitDecoderConfig(&config);
+  output_buffer->colorspace = MODE_RGB;
 
   for(int i = 0; i < iterations; i++) {
     status = WebPDecode(data, data_size, &config);
@@ -41,7 +24,7 @@ int DecodeWebpImage(const uint8_t* data, size_t data_size, const void* c, int it
 
   if (status == VP8_STATUS_OK) ok = 1;
 
-#ifdef OUTPUTIMAGE
+#ifdef OUTPUT_IMAGE
   const WebPDecBuffer* const buffer = &config.output;
 
   const uint32_t width = buffer->width;
@@ -70,14 +53,11 @@ int DecodeWebpImage(const uint8_t* data, size_t data_size, const void* c, int it
     memcpy(&(*result)[header_size + y*stride], row, stride);
     row += stride;
   }
+
+  free(header);
 #endif
 
-  return ok ? 0 : -1;
-}
+  WebPFreeDecBuffer(output_buffer);
 
-void CleanupWebpDecode(const void *config) {
-  if (config != NULL) {
-    WebPDecBuffer* const output_buffer = &((WebPDecoderConfig*) config)->output;
-    WebPFreeDecBuffer(output_buffer);
-  } 
+  return ok ? 0 : -1;
 }

@@ -89,7 +89,7 @@ def generate_plt(data):
     plt.xlabel("Time [s]")
     plt.ylabel("Frequency")
     plt.legend(loc='upper left', fontsize='small')
-    plt.title("Comparison of Decoding Speeds")
+    plt.title(f"Comparison of Decoding Speeds for {f}")
     plt_file_name = results_dir + f + "_analysis_comparison_new.png"
     plt.savefig(plt_file_name)
     plt.close()

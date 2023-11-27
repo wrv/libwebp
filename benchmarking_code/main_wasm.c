@@ -1,9 +1,9 @@
 #include "decode_webp_wasm.h"
 #include "helpers.h"
 
-//#define OUTPUTIMAGE
+//#define OUTPUT_IMAGE
 
-#ifdef OUTPUTIMAGE
+#ifdef OUTPUT_IMAGE
 #include "uvwasi.h"
 #include "uvwasi-rt.h"
 #endif
@@ -46,7 +46,7 @@ int main(int argc, const char** argv) {
   /* Declare an instance of the `inst` module. */
   w2c_decode__webp__wasm inst = { 0 };
 
-#ifdef OUTPUTIMAGE
+#ifdef OUTPUT_IMAGE
 
   uvwasi_t local_uvwasi_state = {0};
 
@@ -101,15 +101,6 @@ int main(int argc, const char** argv) {
   memcpy(&(mem->data[webp_file]), data, data_size);
 
   /////////////////////////////////////////////////////////////////////
-  // Get an address to which config can be set
-  // sizeof(WebPDecoderConfig) = 240
-  u32 config = w2c_decode__webp__wasm_malloc(&inst, 240);
-
-  w2c_decode__webp__wasm_SetupWebpDecode(&inst, webp_file, data_size, config);
-  if (config == 0) {
-    fprintf(stderr, "Failed to initialize WebpDecoder\n");
-    return -1;
-  }
 
   // Result is a pointer to a pointer
   u32 result = w2c_decode__webp__wasm_malloc(&inst, sizeof(u32));
@@ -117,7 +108,7 @@ int main(int argc, const char** argv) {
 
   Stopwatch stop_watch;
   StopwatchReset(&stop_watch);
-  w2c_decode__webp__wasm_DecodeWebpImage(&inst, webp_file, data_size, config, iterations, result, result_size);
+  w2c_decode__webp__wasm_DecodeWebpImage(&inst, webp_file, data_size, iterations, result, result_size);
   const double dt = StopwatchReadAndReset(&stop_watch);
   fprintf(stderr, "Time to %d decode pictures: %.10fs\n", iterations, dt);
   fprintf(out_time, "%f\n", dt);
@@ -137,7 +128,6 @@ int main(int argc, const char** argv) {
     fclose(outfile);
   }
 
-  w2c_decode__webp__wasm_CleanupWebpDecode(&inst, config);
   /////////////////////////////////////////////////////////////////////
 EXIT:
   fclose(out_time);
@@ -145,7 +135,7 @@ EXIT:
   /* Free the inst module. */
   wasm2c_decode__webp__wasm_free(&inst);
 
-#ifdef OUTPUTIMAGE
+#ifdef OUTPUT_IMAGE
   uvwasi_destroy(&local_uvwasi_state);
 #endif
 

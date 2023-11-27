@@ -55,20 +55,13 @@ int main(int argc, const char* argv[]) {
     return -1;
   }
 
-  const void* config = NULL;
-  int status = SetupWebpDecode(data, data_size, &config);
-  if (config == NULL || status != 0) {
-    fprintf(stderr, "Failed to initialize WebpDecoder :/\n");
-    return -1;
-  }
-
   uint8_t* result = NULL;
   size_t result_size = 0;
 
 
   Stopwatch stop_watch;
   StopwatchReset(&stop_watch);
-  status = DecodeWebpImage(data, data_size, config, iterations, &result, &result_size);
+  int status = DecodeWebpImage(data, data_size, iterations, &result, &result_size);
   const double dt = StopwatchReadAndReset(&stop_watch);
   if (status != 0) {
     fprintf(stderr, "Failed to decode :(\n");
@@ -76,9 +69,7 @@ int main(int argc, const char* argv[]) {
   }
   fprintf(stderr, "Time to decode %d pictures: %.10fs\n", iterations, dt);
 
-
-
-  if (result_size > 0) {
+  if (result_size > 0 && result != NULL) {
     fprintf(stderr, "Saving %zu bytes to native_out.ppm\n", result_size);
     FILE *outfile = fopen("native_out.ppm", "wb");
     if (!outfile) {
@@ -91,7 +82,7 @@ int main(int argc, const char* argv[]) {
   }
   fprintf(out_time, "%f\n", dt);
   fclose(out_time);
-  CleanupWebpDecode(config);
   free((void*)data);
+  free(result);
   return 0;
 }
