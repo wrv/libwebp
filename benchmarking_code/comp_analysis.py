@@ -4,8 +4,8 @@ import sys
 import os
 import matplotlib.pyplot as plt
 
-input_dir = "inputs_less/"
-results_dir = "results_less/"
+input_dir = "inputs/"
+results_dir = "results/"
 test_types = ["native", "nativesimd", "wasm", "wasmsimd"]
 MIN = 0.0
 MAX = 20.0
@@ -56,19 +56,19 @@ def generate_txt(data):
     results_for_f = results_dir + f + "_analsysis_comparitive_results.txt"
     with open(results_for_f, 'w') as compout:
       compout.write("averages: \n")
-      compout.write("  native without sse2  : " + str(data[f]["native"][0]) + "\n")
-      compout.write("  native with sse2     : " + str(data[f]["nativesimd"][0]) + "\n")
-      compout.write("  wasm2c without simd128    : " + str(data[f]["wasm"][0]) + "\n")
+      compout.write("  native without sse2    : " + str(data[f]["native"][0]) + "\n")
+      compout.write("  native with sse2       : " + str(data[f]["nativesimd"][0]) + "\n")
+      compout.write("  wasm2c without simd128 : " + str(data[f]["wasm"][0]) + "\n")
       compout.write("  wasm2c with simd128    : " + str(data[f]["wasmsimd"][0]) + "\n")
       compout.write("\n")
       compout.write("performance increase percentage [100 * (hi - lo) / lo]: \n")
-      compout.write("  native without sse2 -> native with sse2     : " + str(native_comp_p) + "\n")
-      compout.write("  wasm2c without simd128 -> wasm2c with simd128   : " + str(wasm2c_comp_p) + "\n")
+      compout.write("  native without sse2 -> native with sse2       : " + str(native_comp_p) + "\n")
+      compout.write("  wasm2c without simd128 -> wasm2c with simd128 : " + str(wasm2c_comp_p) + "\n")
       compout.write("  wasm2c with simd128 -> native with sse2       : " + str(simd2c_comp_p) + "\n")
       compout.write("  wasm2c without simd128 -> native without sse2 : " + str(no_simd2c_comp_p) + "\n")
       compout.write("\n")
       compout.write("time reduction percentage [100 * (hi - lo) / hi]: \n")
-      compout.write("  native without sse2 -> native with sse2     : " + str(native_comp_t) + "\n")
+      compout.write("  native without sse2 -> native with sse2       : " + str(native_comp_t) + "\n")
       compout.write("  wasm2c without simd128 -> wasm with simd128   : " + str(wasm2c_comp_t) + "\n")
       compout.write("  wasm2c with simd128 -> native with sse2       : " + str(simd2c_comp_t) + "\n")
       compout.write("  wasm2c without simd128 -> native without sse2 : " + str(no_simd2c_comp_t) + "\n")
