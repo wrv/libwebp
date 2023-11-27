@@ -19,75 +19,18 @@
 #include <sys/time.h>
 
 #include "decode_webp.h"
-
-typedef struct timeval Stopwatch;
-
-static inline void StopwatchReset(Stopwatch* watch) {
-  gettimeofday(watch, NULL);
-}
-
-static inline double StopwatchReadAndReset(Stopwatch* watch) {
-  struct timeval old_value;
-  double delta_sec, delta_usec;
-  memcpy(&old_value, watch, sizeof(old_value));
-  gettimeofday(watch, NULL);
-  delta_sec = (double)watch->tv_sec - old_value.tv_sec;
-  delta_usec = (double)watch->tv_usec - old_value.tv_usec;
-  return delta_sec + delta_usec / 1000000.0;
-}
-
-
-int load_data(const char* const in_file,
-             const uint8_t** data, size_t* data_size) {
-  int ok;
-  uint8_t* file_data;
-  size_t file_size;
-  FILE* in;
-
-  *data = NULL;
-  *data_size = 0;
-
-  in = fopen(in_file, "rb");
-  if (in == NULL) {
-    fprintf(stderr, "cannot open input file '%s'\n", (const char*)in_file);
-    return 0;
-  }
-  fseek(in, 0, SEEK_END);
-  file_size = ftell(in);
-  fseek(in, 0, SEEK_SET);
-  // we allocate one extra byte for the \0 terminator
-  file_data = (uint8_t*)malloc(file_size + 1);
-  if (file_data == NULL) {
-    fclose(in);
-    fprintf(stderr, "memory allocation failure when reading file %s\n",
-             (const char*)in_file);
-    return 0;
-  }
-  ok = (fread(file_data, file_size, 1, in) == 1);
-  fclose(in);
-
-  if (!ok) {
-    fprintf(stderr, "Could not read %d bytes of data from file %s\n",
-             (int)file_size, (const char*)in_file);
-    free(file_data);
-    return 0;
-  }
-  file_data[file_size] = '\0';  // convenient 0-terminator
-  *data = file_data;
-  *data_size = file_size;
-
-  return 1;
-}
+#include "helpers.h"
 
 
 int main(int argc, const char* argv[]) {
   const char* in_file = NULL;
   const char* out_time_file = NULL;
+  int iterations = 100;
 
-  printf("Webp version 1.2.2\n");
+  printf("Webp version 1.3.2\n");
 
   if (argc < 3) {
-    printf("Usage: dwebp in_file [input_file] [output_time]\n\n"
+    printf("Usage: dwebp in_file [input_file] [output_time] [iterations]\n\n"
         "Decodes the WebP image file to YUV format [Default].\n"
         "Note: Animated WebP files are not supported.\n\n"
       );
@@ -96,6 +39,9 @@ int main(int argc, const char* argv[]) {
 
   in_file = argv[1];
   out_time_file = argv[2];
+  if (argc == 4) {
+    iterations = atoi(argv[3]);
+  }
 
   FILE *out_time = fopen(out_time_file, "a");
   if (!out_time) {
@@ -105,24 +51,44 @@ int main(int argc, const char* argv[]) {
 
   const uint8_t* data = NULL;
   size_t data_size = 0;
-  if (!load_data(in_file, &data, &data_size)) {
+  if (!open_file(in_file, &data, &data_size)) {
     return -1;
   }
 
-  void* config;
-  
-  SetupWebpDecode(data, data_size, &config);
-
-  if (config == NULL) {
-    printf("Failed to initialize WebpDecoder\n");
+  const void* config = NULL;
+  int status = SetupWebpDecode(data, data_size, &config);
+  if (config == NULL || status != 0) {
+    fprintf(stderr, "Failed to initialize WebpDecoder :/\n");
     return -1;
   }
+
+  uint8_t* result = NULL;
+  size_t result_size = 0;
+
 
   Stopwatch stop_watch;
   StopwatchReset(&stop_watch);
-  DecodeWebpImage(data, data_size, config);
+  status = DecodeWebpImage(data, data_size, config, iterations, &result, &result_size);
   const double dt = StopwatchReadAndReset(&stop_watch);
-  fprintf(stderr, "Time to decode pictures: %.10fs\n", dt);
+  if (status != 0) {
+    fprintf(stderr, "Failed to decode :(\n");
+    return -1;
+  }
+  fprintf(stderr, "Time to decode %d pictures: %.10fs\n", iterations, dt);
+
+
+
+  if (result_size > 0) {
+    fprintf(stderr, "Saving %zu bytes to native_out.ppm\n", result_size);
+    FILE *outfile = fopen("native_out.ppm", "wb");
+    if (!outfile) {
+      fprintf(stderr, "Unable to open native_out.ppm\n");
+      return -1;
+    }
+
+    fwrite(result, sizeof(uint8_t), result_size, outfile);
+    fclose(outfile);
+  }
   fprintf(out_time, "%f\n", dt);
   fclose(out_time);
   CleanupWebpDecode(config);

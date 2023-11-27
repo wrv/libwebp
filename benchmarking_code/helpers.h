@@ -1,3 +1,6 @@
+#ifndef HELPERS_H_
+#define HELPERS_H_
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -18,8 +21,8 @@ static inline double StopwatchReadAndReset(Stopwatch* watch) {
   return delta_sec + delta_usec / 1000000.0;
 }
 
-int load_data(const char* const in_file,
-             const uint8_t** data, size_t* data_size) {
+static int open_file(const char* const in_file,
+            const uint8_t** data, size_t* data_size) {
   int ok;
   uint8_t* file_data;
   size_t file_size;
@@ -37,7 +40,7 @@ int load_data(const char* const in_file,
   file_size = ftell(in);
   fseek(in, 0, SEEK_SET);
   // we allocate one extra byte for the \0 terminator
-  file_data = (uint8_t*)malloc(file_size + 1);
+  file_data = (uint8_t*) malloc(file_size + 1);
   if (file_data == NULL) {
     fclose(in);
     fprintf(stderr, "memory allocation failure when reading file %s\n",
@@ -59,3 +62,5 @@ int load_data(const char* const in_file,
 
   return 1;
 }
+
+#endif /* HELPERS_H_ */

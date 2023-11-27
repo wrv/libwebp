@@ -131,7 +131,7 @@ def generate_bar(data):
   colors = {"native": "r", "nativesimd": "g", "wasm": "b", "wasmsimd": "y"}
   labels = list(colors.keys())
   handles = [plt.Rectangle((0,0),1,1, color=colors[label], alpha=0.5) for label in labels]
-  plt.title("Comparison of Decoding Speeds")
+  plt.title("Comparison of Decoding Speeds (total time for 100 decodes)")
   plt.legend(handles, labels, loc="upper left")
   plt_file_name = results_dir + "unified_analysis_bar_chart.png"
   plt.savefig(plt_file_name)
