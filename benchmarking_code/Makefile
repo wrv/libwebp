@@ -5,7 +5,7 @@ WABT_PATH=/home/wrv/research/wasmperf/wabt-1.0.34
 UVWASI_PATH=/home/wrv/research/wasmperf/uvwasi-0.0.19
 
 ## Set this -DOUTPUT_IMAGE to produce an output file
-OUTPUT_IMAGE=
+OUTPUT_IMAGE=-DOUTPUT_IMAGE
 
 WASI_LDFLAGS=-Wl,--export=malloc,--export=DecodeWebpImage -Wl,--no-entry -Wl,--growable-table -Wl,--stack-first -Wl,-z,stack-size=1048576
 WASI_CLANG=${WASI_SDK_PATH}/bin/clang

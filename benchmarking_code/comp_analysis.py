@@ -5,10 +5,11 @@ import os
 import matplotlib.pyplot as plt
 
 input_dir = "inputs/"
-results_dir = "results/"
+results_dir = "results_w_output/"
 test_types = ["native", "nativesimd", "wasm", "wasmsimd"]
 MIN = 0.0
 MAX = 20.0
+ITERATIONS = 100.0
 
 def get_improvement(hi, lo, performance):
   """
@@ -23,7 +24,7 @@ def get_improvement(hi, lo, performance):
 
 def generate_data():
   data = {}
-  input_filenames = os.listdir(input_dir)
+  input_filenames = sorted(os.listdir(input_dir))
   for f in input_filenames:
     data[f] = {}
     for t in test_types:
@@ -118,8 +119,9 @@ def generate_bar(data):
     print(y_axis)
     subplots[subplot_idx].bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=['r', 'g', 'b', 'y'])
     for i in range(len(x_axis)):
-      subplots[subplot_idx].text(i, y_axis[i], y_axis[i])
+      subplots[subplot_idx].text(i, y_axis[i], y_axis[i], rotation=60, rotation_mode='anchor')
     subplots[subplot_idx].set(xlabel=f)
+    #subplots[subplot_idx].margins(0.75)
     subplots[subplot_idx].axes.get_xaxis().set_ticks([])
     subplot_idx += 1
   
@@ -127,7 +129,6 @@ def generate_bar(data):
     ax.label_outer()
 
   subplots[0].set(ylabel="Time [s]")
-
   colors = {"native": "r", "nativesimd": "g", "wasm": "b", "wasmsimd": "y"}
   labels = list(colors.keys())
   handles = [plt.Rectangle((0,0),1,1, color=colors[label], alpha=0.5) for label in labels]

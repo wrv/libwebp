@@ -21,6 +21,17 @@ static inline double StopwatchReadAndReset(Stopwatch* watch) {
   return delta_sec + delta_usec / 1000000.0;
 }
 
+static void print_usage(){
+  printf("Usage: dwebp [input_file] [output_time] [output_filename] [iterations]\n\n"
+    "Decodes the WebP image file to YUV format [Default].\n"
+    "Note: Animated WebP files are not supported.\n\n"
+    "input_file:      webp file to decode\n"
+    "output_time:     file to save the decode time\n"
+    "output_filename: (Optional) File to save the output.\n"
+    "iterations:      (Optional) number of times to decode the image.\n"
+  );
+}
+
 static int open_file(const char* const in_file,
             const uint8_t** data, size_t* data_size) {
   int ok;
@@ -60,6 +71,19 @@ static int open_file(const char* const in_file,
   *data = file_data;
   *data_size = file_size;
 
+  return 1;
+}
+
+static int save_file(const char* const out_file_name, const uint8_t* result, size_t result_size) {
+  fprintf(stderr, "Saving %zu bytes to %s\n", result_size, out_file_name);
+  FILE *outfile = fopen(out_file_name, "wb");
+  if (!outfile) {
+    fprintf(stderr, "Unable to open %s\n", out_file_name);
+    return 0;
+  }
+
+  fwrite(result, sizeof(uint8_t), result_size, outfile);
+  fclose(outfile);
   return 1;
 }
 

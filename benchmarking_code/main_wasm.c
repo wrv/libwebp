@@ -11,23 +11,30 @@
 int main(int argc, const char** argv) {
   const char* in_file = NULL;
   const char* out_time_file = NULL;
+  const char* out_file_name = NULL;
   int iterations = 100;
 
-  printf("wasm Webp version 1.3.2\n");
+  printf("wasm Webp version 1.3.2");
+
+#ifdef OUTPUT_IMAGE
+  printf(" (outputting image)\n");
+#else
+  printf(" (no output)\n");
+#endif
 
   if (argc < 3) {
-    printf("Usage: dwebp in_file [input_file] [output_time] [iterations]\n\n"
-        "Decodes the WebP image file to YUV format [Default].\n"
-        "Note: Animated WebP files are not supported.\n\n"
-      );
+    print_usage();
     return 0;
   }
 
   in_file = argv[1];
   out_time_file = argv[2];
 
-  if (argc == 4) {
-    iterations = atoi(argv[3]);
+  if (argc > 3) {
+    out_file_name = argv[3];
+    if (argc > 4) {
+      iterations = atoi(argv[4]);
+    }
   }
 
   FILE *out_time = fopen(out_time_file, "a");
@@ -117,15 +124,9 @@ int main(int argc, const char** argv) {
 
   if (size > 0) {
     u32 output_ptr = *(u32*) (&mem->data[result]);
-    fprintf(stderr, "Saving %u bytes to wasm_out.ppm\n", size);
-    FILE *outfile = fopen("wasm_out.ppm", "wb");
-    if (!outfile) {
-      fprintf(stderr, "Unable to open wasm_out.ppm\n");
+    if (!save_file(out_file_name, &(mem->data[output_ptr]), size)){
       return -1;
     }
-
-    fwrite(&(mem->data[output_ptr]), sizeof(uint8_t), size, outfile);
-    fclose(outfile);
   }
 
   /////////////////////////////////////////////////////////////////////
