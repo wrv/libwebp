@@ -3,6 +3,11 @@
 // Uncommenting this out saves the image to out.ppm
 //#define OUTPUT_IMAGE
 
+// Use the incremental decoder
+// Firefox uses the incremental decoder: https://searchfox.org/mozilla-central/source/image/decoders/nsWebPDecoder.cpp 
+//#define INCREMENTAL 
+
+
 #ifdef OUTPUT_IMAGE
 #include <stdio.h>
 #endif
@@ -18,9 +23,21 @@ int DecodeWebpImage(const uint8_t* data, size_t data_size, int iterations, uint8
   WebPInitDecoderConfig(&config);
   output_buffer->colorspace = MODE_RGB;
 
+#ifdef INCREMENTAL
+  for(int i = 0; i < iterations; i++){
+    WebPIDecoder* const idec = WebPIDecode(data, data_size, &config);
+    if (idec == NULL) {
+      return -1;
+    } else {
+      status = WebPIUpdate(idec, data, data_size);
+      WebPIDelete(idec);
+    }
+  }
+#else
   for(int i = 0; i < iterations; i++) {
     status = WebPDecode(data, data_size, &config);
   }
+#endif
 
   if (status == VP8_STATUS_OK) ok = 1;
 

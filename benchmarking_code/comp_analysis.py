@@ -4,8 +4,9 @@ import sys
 import os
 import matplotlib.pyplot as plt
 
-input_dir = "inputs/"
-results_dir = "results_w_output/"
+input_dir = "inputs"
+results_dir = "results"
+testname = ""
 test_types = ["native", "nativesimd", "wasm", "wasmsimd"]
 MIN = 0.0
 MAX = 20.0
@@ -28,7 +29,7 @@ def generate_data():
   for f in input_filenames:
     data[f] = {}
     for t in test_types:
-      results_file = results_dir + f + "_" + t + ".csv"
+      results_file = os.path.join(results_dir, f + "_" + t + ".csv")
       raw_data = np.genfromtxt(results_file,delimiter='\n')
       data[f][t] = (np.mean(raw_data), raw_data)
 
@@ -54,7 +55,7 @@ def generate_txt(data):
     simd2c_comp_t = get_improvement(data[f]["wasmsimd"][0], data[f]["nativesimd"][0], False)
     no_simd2c_comp_t = get_improvement(data[f]["wasm"][0], data[f]["native"][0], False)
 
-    results_for_f = results_dir + f + "_analsysis_comparitive_results.txt"
+    results_for_f = os.path.join(results_dir, f + "_analsysis_comparitive_results.txt")
     with open(results_for_f, 'w') as compout:
       compout.write("averages: \n")
       compout.write("  native without sse2    : " + str(data[f]["native"][0]) + "\n")
@@ -91,7 +92,7 @@ def generate_plt(data):
     plt.ylabel("Frequency")
     plt.legend(loc='upper left', fontsize='small')
     plt.title(f"Comparison of Decoding Speeds for {f}")
-    plt_file_name = results_dir + f + "_analysis_comparison_new.png"
+    plt_file_name = os.path.join(results_dir, f + "_analysis_comparison_new.png")
     plt.savefig(plt_file_name)
     plt.close()
 
@@ -132,15 +133,29 @@ def generate_bar(data):
   colors = {"native": "r", "nativesimd": "g", "wasm": "b", "wasmsimd": "y"}
   labels = list(colors.keys())
   handles = [plt.Rectangle((0,0),1,1, color=colors[label], alpha=0.5) for label in labels]
-  plt.title("Comparison of Decoding Speeds (total time for 100 decodes)")
+  if testname != "":
+    plt.title(f"{testname}: Comparison of Decoding Speeds (total time for 100 decodes)")
+  else:
+    plt.title("Comparison of Decoding Speeds (total time for 100 decodes)")
   plt.legend(handles, labels, loc="upper left")
-  plt_file_name = results_dir + "unified_analysis_bar_chart.png"
+  plt_file_name = os.path.join(results_dir, "unified_analysis_bar_chart.png")
   plt.savefig(plt_file_name)
   plt.close()
     
     
 
 def main():
+  global input_dir
+  global results_dir
+  global testname
+  if len(sys.argv) > 2:
+    input_dir = sys.argv[1]
+    results_dir = sys.argv[2]
+    print(f"Using input {input_dir} and results {results_dir}")
+    if len(sys.argv) > 3:
+      testname = sys.argv[3]
+      print(f"Using testname {testname}")
+
   data = generate_data()
   generate_txt(data)
   generate_plt(data)

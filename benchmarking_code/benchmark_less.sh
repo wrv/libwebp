@@ -1,12 +1,11 @@
 N=20
 logname=benchmark_log.txt
 indir=inputs_less
-outdir=results_less_w_output
+outdir=results_less_incremental_w_output
+test="Incremental Decoder w Output"
 
 echo "" > ${logname}
-
 mkdir -p ${outdir}
-
 for IMAGE in ${indir}/*.webp;
 do
     for testname in 'native' 'nativesimd' 'wasm' 'wasmsimd';
@@ -21,3 +20,5 @@ do
         python3 stat_analysis.py "${outdir}/${imagename}_${testname}.csv" "${outdir}/${imagename}_${testname}_stats.txt" "${imagename} with ${testname}" "${outdir}/${imagename}_${testname}_stats.png"
     done
 done
+
+python comp_analysis.py ${indir} ${outdir} "${test}"
