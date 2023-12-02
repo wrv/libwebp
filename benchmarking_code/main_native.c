@@ -1,16 +1,3 @@
-// Copyright 2010 Google Inc. All Rights Reserved.
-//
-// Use of this source code is governed by a BSD-style license
-// that can be found in the COPYING file in the root of the source
-// tree. An additional intellectual property rights grant can be found
-// in the file PATENTS. All contributing project authors may
-// be found in the AUTHORS file in the root of the source tree.
-// -----------------------------------------------------------------------------
-//
-//  Command-line tool for decoding a WebP image.
-//
-// Author: Skal (pascal.massimino@gmail.com)
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

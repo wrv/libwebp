@@ -1,5 +1,12 @@
+#ifdef ENABLE_SIMD
+#include "decode_webp_wasmsimd.h"
+#else
 #include "decode_webp_wasm.h"
+#endif
+
 #include "helpers.h"
+
+#define PAGE_SIZE 65536
 
 //#define OUTPUT_IMAGE
 
@@ -11,10 +18,14 @@
 int main(int argc, const char** argv) {
   const char* in_file = NULL;
   const char* out_time_file = NULL;
-  const char* out_file_name = NULL;
+  const char* out_file_name = "wasm_out.ppm";
   int iterations = 100;
 
-  printf("wasm Webp version 1.3.2");
+#ifdef ENABLE_SIMD
+  printf("WASMSIMD Webp version 1.3.2");
+#else
+  printf("WASM Webp version 1.3.2");
+#endif
 
 #ifdef OUTPUT_IMAGE
   printf(" (outputting image)\n");
@@ -51,7 +62,11 @@ int main(int argc, const char** argv) {
   /* Initialize the Wasm runtime. */
   wasm_rt_init();
   /* Declare an instance of the `inst` module. */
+#ifdef ENABLE_SIMD
+  w2c_decode__webp__wasmsimd inst = { 0 };
+#else
   w2c_decode__webp__wasm inst = { 0 };
+#endif
 
 #ifdef OUTPUT_IMAGE
 
@@ -71,16 +86,6 @@ int main(int argc, const char** argv) {
   init_options.err = 2;
   init_options.fd_table_size = 3;
 
-
-  //no sandboxing enforced, binary has access to everything user does
-  init_options.preopenc = 2;
-  init_options.preopens = calloc(2, sizeof(uvwasi_preopen_t));
-
-  init_options.preopens[0].mapped_path = "/";
-  init_options.preopens[0].real_path = "/";
-  init_options.preopens[1].mapped_path = "./";
-  init_options.preopens[1].real_path = ".";
-
   init_options.allocator = NULL;
   
   uvwasi_errno_t ret = uvwasi_init(&local_uvwasi_state, &init_options);
@@ -91,33 +96,61 @@ int main(int argc, const char** argv) {
   }
 
   /* Construct the module instance. */
+#ifdef ENABLE_SIMD
+  wasm2c_decode__webp__wasmsimd_instantiate(&inst, &wasi_env);
+#else
   wasm2c_decode__webp__wasm_instantiate(&inst, &wasi_env);
+#endif
 #else
   /* Construct the module instance. */
+#ifdef ENABLE_SIMD
+  wasm2c_decode__webp__wasmsimd_instantiate(&inst);
+#else
   wasm2c_decode__webp__wasm_instantiate(&inst);
 #endif
+#endif
+#ifdef ENABLE_SIMD
+  wasm_rt_memory_t* mem = w2c_decode__webp__wasmsimd_memory(&inst);
+#else
   wasm_rt_memory_t* mem = w2c_decode__webp__wasm_memory(&inst);
+#endif
 
   if (mem->size < data_size) {
-    fprintf(stderr, "File too big (%zu) for WASM memory (%lu) \n", data_size, mem->size);
-    goto EXIT;
+    // Grow memory to handle file
+    uint64_t delta = ((data_size - mem->size)/PAGE_SIZE)+1;
+    uint64_t old_pages = wasm_rt_grow_memory(mem, delta);
+    fprintf(stderr, "File too big (%zu) for WASM memory (%lu)\n", data_size, mem->size);
+    fprintf(stderr, "Grew memory of size %lu by %lu pages\n", old_pages, delta);
   }
   // Allocate sandbox memory
+#ifdef ENABLE_SIMD
+  u32 webp_file = w2c_decode__webp__wasmsimd_malloc(&inst, data_size);
+#else
   u32 webp_file = w2c_decode__webp__wasm_malloc(&inst, data_size);
+#endif
   // Copy data to sandbox memory
   memcpy(&(mem->data[webp_file]), data, data_size);
 
   /////////////////////////////////////////////////////////////////////
 
   // Result is a pointer to a pointer
+#ifdef ENABLE_SIMD
+  u32 result = w2c_decode__webp__wasmsimd_malloc(&inst, sizeof(u32));
+  u32 result_size = w2c_decode__webp__wasmsimd_malloc(&inst, sizeof(u32));
+#else
   u32 result = w2c_decode__webp__wasm_malloc(&inst, sizeof(u32));
   u32 result_size = w2c_decode__webp__wasm_malloc(&inst, sizeof(u32));
+#endif
 
   Stopwatch stop_watch;
   StopwatchReset(&stop_watch);
+#ifdef ENABLE_SIMD
+  w2c_decode__webp__wasmsimd_DecodeWebpImage(&inst, webp_file, data_size, iterations, result, result_size);
+#else
   w2c_decode__webp__wasm_DecodeWebpImage(&inst, webp_file, data_size, iterations, result, result_size);
+#endif
   const double dt = StopwatchReadAndReset(&stop_watch);
-  fprintf(stderr, "Time to %d decode pictures: %.10fs\n", iterations, dt);
+  fprintf(stderr, "Time for %d decode iterations: %.10fs\n", iterations, dt);
   fprintf(out_time, "%f\n", dt);
 
   u32 size = *(u32*) (&mem->data[result_size]);
@@ -134,7 +167,11 @@ EXIT:
   fclose(out_time);
   free((void*)data);
   /* Free the inst module. */
+#ifdef ENABLE_SIMD
+  wasm2c_decode__webp__wasmsimd_free(&inst);
+#else
   wasm2c_decode__webp__wasm_free(&inst);
+#endif
 
 #ifdef OUTPUT_IMAGE
   uvwasi_destroy(&local_uvwasi_state);
