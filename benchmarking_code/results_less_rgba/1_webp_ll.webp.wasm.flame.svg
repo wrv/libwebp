@@ -1,0 +1,705 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="390" onload="init(evt)" viewBox="0 0 1200 390" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="390.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >Flame Graph</text>
+<text id="details" x="10.00" y="373" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="ignorecase" x="1174.00" y="24" >ic</text>
+<text id="matched" x="1090.00" y="373" > </text>
+<g id="frames">
+<g >
+<title>do_syscall_64 (440,750 samples, 0.05%)</title><rect x="10.0" y="261" width="0.6" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="13.00" y="271.5" ></text>
+</g>
+<g >
+<title>exc_page_fault (383,489 samples, 0.04%)</title><rect x="258.5" y="277" width="0.5" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="261.47" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd5_C (4,619,279 samples, 0.52%)</title><rect x="163.0" y="293" width="6.2" height="15.0" fill="rgb(253,223,53)" rx="2" ry="2" />
+<text  x="165.99" y="303.5" ></text>
+</g>
+<g >
+<title>do_execveat_common.isra.0 (170,085 samples, 0.02%)</title><rect x="10.6" y="245" width="0.2" height="15.0" fill="rgb(231,123,29)" rx="2" ry="2" />
+<text  x="13.59" y="255.5" ></text>
+</g>
+<g >
+<title>_copy_to_iter (440,750 samples, 0.05%)</title><rect x="10.0" y="181" width="0.6" height="15.0" fill="rgb(227,105,25)" rx="2" ry="2" />
+<text  x="13.00" y="191.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (170,085 samples, 0.02%)</title><rect x="10.6" y="277" width="0.2" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="13.59" y="287.5" ></text>
+</g>
+<g >
+<title>do_fault (383,489 samples, 0.04%)</title><rect x="258.5" y="213" width="0.5" height="15.0" fill="rgb(248,200,47)" rx="2" ry="2" />
+<text  x="261.47" y="223.5" ></text>
+</g>
+<g >
+<title>__handle_mm_fault (383,489 samples, 0.04%)</title><rect x="258.5" y="229" width="0.5" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="261.47" y="239.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (170,085 samples, 0.02%)</title><rect x="10.6" y="293" width="0.2" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="13.59" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd10_C (924,306 samples, 0.10%)</title><rect x="10.8" y="293" width="1.2" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="13.82" y="303.5" ></text>
+</g>
+<g >
+<title>try_charge_memcg (440,750 samples, 0.05%)</title><rect x="10.0" y="37" width="0.6" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="13.00" y="47.5" ></text>
+</g>
+<g >
+<title>vfs_read (440,750 samples, 0.05%)</title><rect x="10.0" y="229" width="0.6" height="15.0" fill="rgb(224,88,21)" rx="2" ry="2" />
+<text  x="13.00" y="239.5" ></text>
+</g>
+<g >
+<title>all (883,933,352 samples, 100%)</title><rect x="10.0" y="341" width="1180.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="351.5" ></text>
+</g>
+<g >
+<title>__x64_sys_execve (170,085 samples, 0.02%)</title><rect x="10.6" y="261" width="0.2" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="13.59" y="271.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LTransformColorInverse_C (81,323,318 samples, 9.20%)</title><rect x="1081.4" y="309" width="108.5" height="15.0" fill="rgb(249,205,49)" rx="2" ry="2" />
+<text  x="1084.38" y="319.5" >w2c_decode__w..</text>
+</g>
+<g >
+<title>next_uptodate_page (383,489 samples, 0.04%)</title><rect x="258.5" y="181" width="0.5" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="261.47" y="191.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd12_C (923,867 samples, 0.10%)</title><rect x="34.2" y="293" width="1.3" height="15.0" fill="rgb(206,6,1)" rx="2" ry="2" />
+<text  x="37.23" y="303.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (440,750 samples, 0.05%)</title><rect x="10.0" y="277" width="0.6" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="13.00" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LAddGreenToBlueAndRed_C (36,933,964 samples, 4.18%)</title><rect x="849.5" y="309" width="49.3" height="15.0" fill="rgb(236,142,34)" rx="2" ry="2" />
+<text  x="852.48" y="319.5" >w2c_..</text>
+</g>
+<g >
+<title>copy_page_to_iter (440,750 samples, 0.05%)</title><rect x="10.0" y="197" width="0.6" height="15.0" fill="rgb(209,22,5)" rx="2" ry="2" />
+<text  x="13.00" y="207.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd2_C (4,612,634 samples, 0.52%)</title><rect x="152.5" y="293" width="6.2" height="15.0" fill="rgb(222,82,19)" rx="2" ry="2" />
+<text  x="155.55" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd4_C (923,501 samples, 0.10%)</title><rect x="161.8" y="293" width="1.2" height="15.0" fill="rgb(210,23,5)" rx="2" ry="2" />
+<text  x="164.76" y="303.5" ></text>
+</g>
+<g >
+<title>asm_exc_page_fault (383,489 samples, 0.04%)</title><rect x="258.5" y="293" width="0.5" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="261.47" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_ReadHuffmanCode (7,387,093 samples, 0.84%)</title><rect x="839.6" y="309" width="9.9" height="15.0" fill="rgb(243,177,42)" rx="2" ry="2" />
+<text  x="842.62" y="319.5" ></text>
+</g>
+<g >
+<title>kmem_cache_alloc_bulk (170,085 samples, 0.02%)</title><rect x="10.6" y="117" width="0.2" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="13.59" y="127.5" ></text>
+</g>
+<g >
+<title>__memset_avx2_unaligned_erms (924,092 samples, 0.10%)</title><rect x="259.0" y="309" width="1.2" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="261.98" y="319.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd3_C (2,289,020 samples, 0.26%)</title><rect x="158.7" y="293" width="3.1" height="15.0" fill="rgb(216,52,12)" rx="2" ry="2" />
+<text  x="161.71" y="303.5" ></text>
+</g>
+<g >
+<title>mas_preallocate (170,085 samples, 0.02%)</title><rect x="10.6" y="149" width="0.2" height="15.0" fill="rgb(206,8,2)" rx="2" ry="2" />
+<text  x="13.59" y="159.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DecodeImageData (345,297,291 samples, 39.06%)</title><rect x="302.4" y="309" width="461.0" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="305.42" y="319.5" >w2c_decode__webp__wasm_DecodeImageData</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd7_C (3,694,722 samples, 0.42%)</title><rect x="169.2" y="293" width="4.9" height="15.0" fill="rgb(240,164,39)" rx="2" ry="2" />
+<text  x="172.16" y="303.5" ></text>
+</g>
+<g >
+<title>handle_mm_fault (440,750 samples, 0.05%)</title><rect x="10.0" y="101" width="0.6" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="13.00" y="111.5" ></text>
+</g>
+<g >
+<title>filemap_map_pages (383,489 samples, 0.04%)</title><rect x="258.5" y="197" width="0.5" height="15.0" fill="rgb(229,112,27)" rx="2" ry="2" />
+<text  x="261.47" y="207.5" ></text>
+</g>
+<g >
+<title>asm_exc_page_fault (440,750 samples, 0.05%)</title><rect x="10.0" y="149" width="0.6" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="13.00" y="159.5" ></text>
+</g>
+<g >
+<title>mas_alloc_nodes (170,085 samples, 0.02%)</title><rect x="10.6" y="133" width="0.2" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="13.59" y="143.5" ></text>
+</g>
+<g >
+<title>shift_arg_pages (170,085 samples, 0.02%)</title><rect x="10.6" y="181" width="0.2" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="13.59" y="191.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd1_C (4,620,990 samples, 0.52%)</title><rect x="146.4" y="293" width="6.1" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="149.38" y="303.5" ></text>
+</g>
+<g >
+<title>decode_webp_was (883,889,915 samples, 100.00%)</title><rect x="10.0" y="325" width="1179.9" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="13.00" y="335.5" >decode_webp_was</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DecodeImageStream (1,848,385 samples, 0.21%)</title><rect x="763.4" y="309" width="2.4" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="766.37" y="319.5" ></text>
+</g>
+<g >
+<title>__vma_adjust (170,085 samples, 0.02%)</title><rect x="10.6" y="165" width="0.2" height="15.0" fill="rgb(224,87,20)" rx="2" ry="2" />
+<text  x="13.59" y="175.5" ></text>
+</g>
+<g >
+<title>do_user_addr_fault (383,489 samples, 0.04%)</title><rect x="258.5" y="261" width="0.5" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="261.47" y="271.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd13_C (83,085,201 samples, 9.40%)</title><rect x="35.5" y="293" width="110.9" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="38.47" y="303.5" >w2c_decode__w..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_BuildHuffmanTable (31,611,805 samples, 3.58%)</title><rect x="260.2" y="309" width="42.2" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="263.22" y="319.5" >w2c..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LAddGreenToBlueAndRed_C (923,295 samples, 0.10%)</title><rect x="174.1" y="293" width="1.2" height="15.0" fill="rgb(236,142,34)" rx="2" ry="2" />
+<text  x="177.09" y="303.5" ></text>
+</g>
+<g >
+<title>handle_mm_fault (383,489 samples, 0.04%)</title><rect x="258.5" y="245" width="0.5" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="261.47" y="255.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LBuildHuffmanTable (924,148 samples, 0.10%)</title><rect x="898.8" y="309" width="1.2" height="15.0" fill="rgb(214,45,10)" rx="2" ry="2" />
+<text  x="901.79" y="319.5" ></text>
+</g>
+<g >
+<title>do_user_addr_fault (440,750 samples, 0.05%)</title><rect x="10.0" y="117" width="0.6" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="13.00" y="127.5" ></text>
+</g>
+<g >
+<title>bprm_execve (170,085 samples, 0.02%)</title><rect x="10.6" y="229" width="0.2" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="13.59" y="239.5" ></text>
+</g>
+<g >
+<title>load_elf_binary (170,085 samples, 0.02%)</title><rect x="10.6" y="213" width="0.2" height="15.0" fill="rgb(223,83,20)" rx="2" ry="2" />
+<text  x="13.59" y="223.5" ></text>
+</g>
+<g >
+<title>copy_user_generic_string (440,750 samples, 0.05%)</title><rect x="10.0" y="165" width="0.6" height="15.0" fill="rgb(205,0,0)" rx="2" ry="2" />
+<text  x="13.00" y="175.5" ></text>
+</g>
+<g >
+<title>__handle_mm_fault (440,750 samples, 0.05%)</title><rect x="10.0" y="85" width="0.6" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="13.00" y="95.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LTransformColorInverse_C (28,496,199 samples, 3.22%)</title><rect x="220.4" y="293" width="38.1" height="15.0" fill="rgb(249,205,49)" rx="2" ry="2" />
+<text  x="223.43" y="303.5" >w2c..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd1_C (21,173,119 samples, 2.40%)</title><rect x="811.4" y="309" width="28.2" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="814.36" y="319.5" >w..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LInverseTransform (33,786,757 samples, 3.82%)</title><rect x="175.3" y="293" width="45.1" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="178.33" y="303.5" >w2c_..</text>
+</g>
+<g >
+<title>[unknown] (186,127,830 samples, 21.06%)</title><rect x="10.0" y="309" width="248.5" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="13.00" y="319.5" >[unknown]</text>
+</g>
+<g >
+<title>exc_page_fault (440,750 samples, 0.05%)</title><rect x="10.0" y="133" width="0.6" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="13.00" y="143.5" ></text>
+</g>
+<g >
+<title>charge_memcg (440,750 samples, 0.05%)</title><rect x="10.0" y="53" width="0.6" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="13.00" y="63.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LDoFillBitWindow (70,249,016 samples, 7.95%)</title><rect x="979.6" y="309" width="93.8" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="982.62" y="319.5" >w2c_decode_..</text>
+</g>
+<g >
+<title>preempt_count_add (170,085 samples, 0.02%)</title><rect x="10.6" y="101" width="0.2" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="13.59" y="111.5" ></text>
+</g>
+<g >
+<title>filemap_read (440,750 samples, 0.05%)</title><rect x="10.0" y="213" width="0.6" height="15.0" fill="rgb(246,192,46)" rx="2" ry="2" />
+<text  x="13.00" y="223.5" ></text>
+</g>
+<g >
+<title>__mem_cgroup_charge (440,750 samples, 0.05%)</title><rect x="10.0" y="69" width="0.6" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="13.00" y="79.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LReadBits (5,977,566 samples, 0.68%)</title><rect x="1073.4" y="309" width="8.0" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="1076.40" y="319.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd12_C (34,100,237 samples, 3.86%)</title><rect x="765.8" y="309" width="45.6" height="15.0" fill="rgb(206,6,1)" rx="2" ry="2" />
+<text  x="768.83" y="319.5" >w2c_..</text>
+</g>
+<g >
+<title>setup_arg_pages (170,085 samples, 0.02%)</title><rect x="10.6" y="197" width="0.2" height="15.0" fill="rgb(222,82,19)" rx="2" ry="2" />
+<text  x="13.59" y="207.5" ></text>
+</g>
+<g >
+<title>__libc_start_main_impl (383,489 samples, 0.04%)</title><rect x="258.5" y="309" width="0.5" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="261.47" y="319.5" ></text>
+</g>
+<g >
+<title>ksys_read (440,750 samples, 0.05%)</title><rect x="10.0" y="245" width="0.6" height="15.0" fill="rgb(229,113,27)" rx="2" ry="2" />
+<text  x="13.00" y="255.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_PredictorAdd11_C (16,617,224 samples, 1.88%)</title><rect x="12.0" y="293" width="22.2" height="15.0" fill="rgb(212,36,8)" rx="2" ry="2" />
+<text  x="15.05" y="303.5" >w..</text>
+</g>
+<g >
+<title>__libc_read (440,750 samples, 0.05%)</title><rect x="10.0" y="293" width="0.6" height="15.0" fill="rgb(212,34,8)" rx="2" ry="2" />
+<text  x="13.00" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LConvertBGRAToRGBA_C (59,628,562 samples, 6.75%)</title><rect x="900.0" y="309" width="79.6" height="15.0" fill="rgb(215,47,11)" rx="2" ry="2" />
+<text  x="903.02" y="319.5" >w2c_decod..</text>
+</g>
+</g>
+</svg>

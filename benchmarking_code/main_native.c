@@ -62,7 +62,7 @@ int main(int argc, const char* argv[]) {
     fprintf(stderr, "Failed to decode :(\n");
     return -1;
   }
-  fprintf(stderr, "Time to decode %d pictures: %.10fs\n", iterations, dt);
+  fprintf(stderr, "Time to decode %s %d times: %.10fs\n", in_file, iterations, dt);
 
   if (result_size > 0 && result != NULL) {
     if (!save_file(out_file_name, result, result_size)){

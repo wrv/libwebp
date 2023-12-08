@@ -1,0 +1,1105 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="374" onload="init(evt)" viewBox="0 0 1200 374" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs>
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	text { font-family:Verdana; font-size:12px; fill:rgb(0,0,0); }
+	#search, #ignorecase { opacity:0.1; cursor:pointer; }
+	#search:hover, #search.show, #ignorecase:hover, #ignorecase.show { opacity:1; }
+	#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+	#title { text-anchor:middle; font-size:17px}
+	#unzoom { cursor:pointer; }
+	#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+	.hide { display:none; }
+	.parent { opacity:0.5; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	"use strict";
+	var details, searchbtn, unzoombtn, matchedtxt, svg, searching, currentSearchTerm, ignorecase, ignorecaseBtn;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		ignorecaseBtn = document.getElementById("ignorecase");
+		unzoombtn = document.getElementById("unzoom");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+		currentSearchTerm = null;
+
+		// use GET parameters to restore a flamegraphs state.
+		var params = get_params();
+		if (params.x && params.y)
+			zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+                if (params.s) search(params.s);
+	}
+
+	// event listeners
+	window.addEventListener("click", function(e) {
+		var target = find_group(e.target);
+		if (target) {
+			if (target.nodeName == "a") {
+				if (e.ctrlKey === false) return;
+				e.preventDefault();
+			}
+			if (target.classList.contains("parent")) unzoom(true);
+			zoom(target);
+			if (!document.querySelector('.parent')) {
+				// we have basically done a clearzoom so clear the url
+				var params = get_params();
+				if (params.x) delete params.x;
+				if (params.y) delete params.y;
+				history.replaceState(null, null, parse_params(params));
+				unzoombtn.classList.add("hide");
+				return;
+			}
+
+			// set parameters for zoom state
+			var el = target.querySelector("rect");
+			if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+				var params = get_params()
+				params.x = el.attributes._orig_x.value;
+				params.y = el.attributes.y.value;
+				history.replaceState(null, null, parse_params(params));
+			}
+		}
+		else if (e.target.id == "unzoom") clearzoom();
+		else if (e.target.id == "search") search_prompt();
+		else if (e.target.id == "ignorecase") toggle_ignorecase();
+	}, false)
+
+	// mouse-over for info
+	// show
+	window.addEventListener("mouseover", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = "Function: " + g_to_text(target);
+	}, false)
+
+	// clear
+	window.addEventListener("mouseout", function(e) {
+		var target = find_group(e.target);
+		if (target) details.nodeValue = ' ';
+	}, false)
+
+	// ctrl-F for search
+	// ctrl-I to toggle case-sensitive search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+		else if (e.ctrlKey && e.keyCode === 73) {
+			e.preventDefault();
+			toggle_ignorecase();
+		}
+	}, false)
+
+	// functions
+	function get_params() {
+		var params = {};
+		var paramsarr = window.location.search.substr(1).split('&');
+		for (var i = 0; i < paramsarr.length; ++i) {
+			var tmp = paramsarr[i].split("=");
+			if (!tmp[0] || !tmp[1]) continue;
+			params[tmp[0]]  = decodeURIComponent(tmp[1]);
+		}
+		return params;
+	}
+	function parse_params(params) {
+		var uri = "?";
+		for (var key in params) {
+			uri += key + '=' + encodeURIComponent(params[key]) + '&';
+		}
+		if (uri.slice(-1) == "&")
+			uri = uri.substring(0, uri.length - 1);
+		if (uri == '?')
+			uri = window.location.href.split('?')[0];
+		return uri;
+	}
+	function find_child(node, selector) {
+		var children = node.querySelectorAll(selector);
+		if (children.length) return children[0];
+	}
+	function find_group(node) {
+		var parent = node.parentElement;
+		if (!parent) return;
+		if (parent.id == "frames") return node;
+		return find_group(parent);
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_" + attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_" + attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes.width.value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes.x.value = parseFloat(r.attributes.x.value) + 3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2 * 12 * 0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		var sl = t.getSubStringLength(0, txt.length);
+		// check if only whitespace or if we can fit the entire string into width w
+		if (/^ *$/.test(txt) || sl < w)
+			return;
+
+		// this isn't perfect, but gives a good starting point
+		// and avoids calling getSubStringLength too often
+		var start = Math.floor((w/sl) * txt.length);
+		for (var x = start; x > 0; x = x-2) {
+			if (t.getSubStringLength(0, x + 2) <= w) {
+				t.textContent = txt.substring(0, x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = (parseFloat(e.attributes.x.value) - x - 10) * ratio + 10;
+				if (e.tagName == "text")
+					e.attributes.x.value = find_child(e.parentNode, "rect[x]").attributes.x.value + 3;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseFloat(e.attributes.width.value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_child(c[i], x - 10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes.x != undefined) {
+				orig_save(e, "x");
+				e.attributes.x.value = 10;
+			}
+			if (e.attributes.width != undefined) {
+				orig_save(e, "width");
+				e.attributes.width.value = parseInt(svg.width.baseVal.value) - (10 * 2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for (var i = 0, c = e.childNodes; i < c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr.width.value);
+		var xmin = parseFloat(attr.x.value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr.y.value);
+		var ratio = (svg.width.baseVal.value - 2 * 10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		unzoombtn.classList.remove("hide");
+
+		var el = document.getElementById("frames").children;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a.x.value);
+			var ew = parseFloat(a.width.value);
+			var upstack;
+			// Is it an ancestor
+			if (0 == 0) {
+				upstack = parseFloat(a.y.value) > ymin;
+			} else {
+				upstack = parseFloat(a.y.value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.classList.add("parent");
+					zoom_parent(e);
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.classList.add("hide");
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.classList.add("hide");
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					update_text(e);
+				}
+			}
+		}
+		search();
+	}
+	function unzoom(dont_update_text) {
+		unzoombtn.classList.add("hide");
+		var el = document.getElementById("frames").children;
+		for(var i = 0; i < el.length; i++) {
+			el[i].classList.remove("parent");
+			el[i].classList.remove("hide");
+			zoom_reset(el[i]);
+			if(!dont_update_text) update_text(el[i]);
+		}
+		search();
+	}
+	function clearzoom() {
+		unzoom();
+
+		// remove zoom state
+		var params = get_params();
+		if (params.x) delete params.x;
+		if (params.y) delete params.y;
+		history.replaceState(null, null, parse_params(params));
+	}
+
+	// search
+	function toggle_ignorecase() {
+		ignorecase = !ignorecase;
+		if (ignorecase) {
+			ignorecaseBtn.classList.add("show");
+		} else {
+			ignorecaseBtn.classList.remove("show");
+		}
+		reset_search();
+		search();
+	}
+	function reset_search() {
+		var el = document.querySelectorAll("#frames rect");
+		for (var i = 0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+		var params = get_params();
+		delete params.s;
+		history.replaceState(null, null, parse_params(params));
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)"
+			    + (ignorecase ? ", ignoring case" : "")
+			    + "\nPress Ctrl-i to toggle case sensitivity", "");
+			if (term != null) search(term);
+		} else {
+			reset_search();
+			searching = 0;
+			currentSearchTerm = null;
+			searchbtn.classList.remove("show");
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.classList.add("hide");
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		if (term) currentSearchTerm = term;
+
+		var re = new RegExp(currentSearchTerm, ignorecase ? 'i' : '');
+		var el = document.getElementById("frames").children;
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes.width.value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes.x.value);
+				orig_save(rect, "fill");
+				rect.attributes.fill.value = "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+		var params = get_params();
+		params.s = currentSearchTerm;
+		history.replaceState(null, null, parse_params(params));
+
+		searchbtn.classList.add("show");
+		searchbtn.firstChild.nodeValue = "Reset Search";
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.classList.remove("hide");
+		var pct = 100 * count / maxwidth;
+		if (pct != 100) pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="374.0" fill="url(#background)"  />
+<text id="title" x="600.00" y="24" >Flame Graph</text>
+<text id="details" x="10.00" y="357" > </text>
+<text id="unzoom" x="10.00" y="24" class="hide">Reset Zoom</text>
+<text id="search" x="1090.00" y="24" >Search</text>
+<text id="ignorecase" x="1174.00" y="24" >ic</text>
+<text id="matched" x="1090.00" y="357" > </text>
+<g id="frames">
+<g >
+<title>free_unref_page_list (3,697,140 samples, 0.33%)</title><rect x="12.0" y="69" width="3.9" height="15.0" fill="rgb(221,77,18)" rx="2" ry="2" />
+<text  x="14.97" y="79.5" ></text>
+</g>
+<g >
+<title>__mod_lruvec_state (518,433 samples, 0.05%)</title><rect x="1189.4" y="149" width="0.6" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="1192.45" y="159.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (479,483 samples, 0.04%)</title><rect x="19.4" y="261" width="0.5" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="22.39" y="271.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_FilterLoop24_C (923,881 samples, 0.08%)</title><rect x="20.9" y="277" width="1.0" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="23.88" y="287.5" ></text>
+</g>
+<g >
+<title>ksys_write (517,731 samples, 0.05%)</title><rect x="18.8" y="229" width="0.6" height="15.0" fill="rgb(205,4,1)" rx="2" ry="2" />
+<text  x="21.84" y="239.5" ></text>
+</g>
+<g >
+<title>handle_mm_fault (22,163,185 samples, 2.00%)</title><rect x="62.1" y="229" width="23.6" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="65.10" y="239.5" >h..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VFilter16i_C (924,353 samples, 0.08%)</title><rect x="1181.6" y="293" width="1.0" height="15.0" fill="rgb(214,43,10)" rx="2" ry="2" />
+<text  x="1184.59" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_GetLargeValue (40,132,638 samples, 3.61%)</title><rect x="669.1" y="293" width="42.7" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="672.13" y="303.5" >w2c_..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_ReconstructRow (28,193,928 samples, 2.54%)</title><rect x="801.9" y="293" width="29.9" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="804.87" y="303.5" >w2..</text>
+</g>
+<g >
+<title>tlb_finish_mmu (5,547,601 samples, 0.50%)</title><rect x="10.0" y="117" width="5.9" height="15.0" fill="rgb(251,212,50)" rx="2" ry="2" />
+<text  x="13.00" y="127.5" ></text>
+</g>
+<g >
+<title>__folio_alloc (924,381 samples, 0.08%)</title><rect x="124.9" y="181" width="0.9" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="127.85" y="191.5" ></text>
+</g>
+<g >
+<title>n_tty_write (517,731 samples, 0.05%)</title><rect x="18.8" y="181" width="0.6" height="15.0" fill="rgb(210,23,5)" rx="2" ry="2" />
+<text  x="21.84" y="191.5" ></text>
+</g>
+<g >
+<title>expand_downwards (110,870 samples, 0.01%)</title><rect x="19.8" y="165" width="0.1" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="22.78" y="175.5" ></text>
+</g>
+<g >
+<title>amd_pmu_check_overflow (865,621 samples, 0.08%)</title><rect x="418.7" y="117" width="0.9" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="421.68" y="127.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VE4_C (1,847,902 samples, 0.17%)</title><rect x="1178.6" y="293" width="2.0" height="15.0" fill="rgb(242,174,41)" rx="2" ry="2" />
+<text  x="1181.65" y="303.5" ></text>
+</g>
+<g >
+<title>__hrtimer_run_queues (865,621 samples, 0.08%)</title><rect x="418.7" y="213" width="0.9" height="15.0" fill="rgb(237,150,35)" rx="2" ry="2" />
+<text  x="421.68" y="223.5" ></text>
+</g>
+<g >
+<title>delay_halt (865,621 samples, 0.08%)</title><rect x="418.7" y="101" width="0.9" height="15.0" fill="rgb(250,207,49)" rx="2" ry="2" />
+<text  x="421.68" y="111.5" ></text>
+</g>
+<g >
+<title>sync_regs (924,166 samples, 0.08%)</title><rect x="1177.7" y="261" width="0.9" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="1180.67" y="271.5" ></text>
+</g>
+<g >
+<title>handle_mm_fault (518,433 samples, 0.05%)</title><rect x="1189.4" y="229" width="0.6" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="1192.45" y="239.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (479,483 samples, 0.04%)</title><rect x="19.4" y="277" width="0.5" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="22.39" y="287.5" ></text>
+</g>
+<g >
+<title>perf_iterate_ctx (368,604 samples, 0.03%)</title><rect x="19.4" y="133" width="0.4" height="15.0" fill="rgb(205,4,0)" rx="2" ry="2" />
+<text  x="22.39" y="143.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DecodeImageData (21,243,338 samples, 1.91%)</title><rect x="103.3" y="293" width="22.5" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="106.26" y="303.5" >w..</text>
+</g>
+<g >
+<title>__mod_node_page_state (924,302 samples, 0.08%)</title><rect x="68.0" y="133" width="1.0" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="70.99" y="143.5" ></text>
+</g>
+<g >
+<title>get_mem_cgroup_from_mm (923,813 samples, 0.08%)</title><rect x="122.9" y="181" width="1.0" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="125.89" y="191.5" ></text>
+</g>
+<g >
+<title>clear_page_rep (6,461,550 samples, 0.58%)</title><rect x="74.9" y="133" width="6.8" height="15.0" fill="rgb(253,221,52)" rx="2" ry="2" />
+<text  x="77.86" y="143.5" ></text>
+</g>
+<g >
+<title>folio_add_lru (920,266 samples, 0.08%)</title><rect x="123.9" y="197" width="1.0" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="126.88" y="207.5" ></text>
+</g>
+<g >
+<title>do_user_addr_fault (518,433 samples, 0.05%)</title><rect x="1189.4" y="245" width="0.6" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="1192.45" y="255.5" ></text>
+</g>
+<g >
+<title>page_add_new_anon_rmap (3,693,146 samples, 0.33%)</title><rect x="69.0" y="197" width="3.9" height="15.0" fill="rgb(235,138,33)" rx="2" ry="2" />
+<text  x="71.97" y="207.5" ></text>
+</g>
+<g >
+<title>perf_event_mmap (368,604 samples, 0.03%)</title><rect x="19.4" y="149" width="0.4" height="15.0" fill="rgb(229,112,26)" rx="2" ry="2" />
+<text  x="22.39" y="159.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_GetLargeValue (1,847,459 samples, 0.17%)</title><rect x="31.7" y="277" width="1.9" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="34.68" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_UpsampleRgbaLinePair_C (247,149,276 samples, 22.26%)</title><rect x="916.0" y="293" width="262.6" height="15.0" fill="rgb(215,46,11)" rx="2" ry="2" />
+<text  x="919.04" y="303.5" >w2c_decode__webp__wasm_UpsampleRgba..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_ExtractGreen_C (24,885,196 samples, 2.24%)</title><rect x="154.9" y="293" width="26.4" height="15.0" fill="rgb(247,194,46)" rx="2" ry="2" />
+<text  x="157.87" y="303.5" >w..</text>
+</g>
+<g >
+<title>bprm_execve (479,483 samples, 0.04%)</title><rect x="19.4" y="213" width="0.5" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="22.39" y="223.5" ></text>
+</g>
+<g >
+<title>decode_webp_was (1,110,533,382 samples, 100.00%)</title><rect x="10.0" y="309" width="1180.0" height="15.0" fill="rgb(216,54,12)" rx="2" ry="2" />
+<text  x="13.00" y="319.5" >decode_webp_was</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TransformDC_C (1,846,663 samples, 0.17%)</title><rect x="51.3" y="277" width="2.0" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="54.31" y="287.5" ></text>
+</g>
+<g >
+<title>lru_add_fn (518,433 samples, 0.05%)</title><rect x="1189.4" y="165" width="0.6" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="1192.45" y="175.5" ></text>
+</g>
+<g >
+<title>__perf_addr_filters_adjust (368,604 samples, 0.03%)</title><rect x="19.4" y="117" width="0.4" height="15.0" fill="rgb(247,195,46)" rx="2" ry="2" />
+<text  x="22.39" y="127.5" ></text>
+</g>
+<g >
+<title>get_mem_cgroup_from_mm (923,692 samples, 0.08%)</title><rect x="66.0" y="181" width="1.0" height="15.0" fill="rgb(218,61,14)" rx="2" ry="2" />
+<text  x="69.03" y="191.5" ></text>
+</g>
+<g >
+<title>release_pages (5,547,601 samples, 0.50%)</title><rect x="10.0" y="85" width="5.9" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="13.00" y="95.5" ></text>
+</g>
+<g >
+<title>load_elf_binary (479,483 samples, 0.04%)</title><rect x="19.4" y="197" width="0.5" height="15.0" fill="rgb(223,83,20)" rx="2" ry="2" />
+<text  x="22.39" y="207.5" ></text>
+</g>
+<g >
+<title>__list_del_entry_valid (3,695,321 samples, 0.33%)</title><rect x="81.7" y="117" width="4.0" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="84.73" y="127.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_GetCoeffsFast (230,214,295 samples, 20.73%)</title><rect x="424.5" y="293" width="244.6" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="427.51" y="303.5" >w2c_decode__webp__wasm_GetCoeffs..</text>
+</g>
+<g >
+<title>__mod_lruvec_state (924,302 samples, 0.08%)</title><rect x="68.0" y="149" width="1.0" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="70.99" y="159.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_HE8uv_C (924,226 samples, 0.08%)</title><rect x="713.7" y="293" width="1.0" height="15.0" fill="rgb(239,158,37)" rx="2" ry="2" />
+<text  x="716.73" y="303.5" ></text>
+</g>
+<g >
+<title>down_read (517,731 samples, 0.05%)</title><rect x="18.8" y="165" width="0.6" height="15.0" fill="rgb(246,188,45)" rx="2" ry="2" />
+<text  x="21.84" y="175.5" ></text>
+</g>
+<g >
+<title>exc_page_fault (518,433 samples, 0.05%)</title><rect x="1189.4" y="261" width="0.6" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="1192.45" y="271.5" ></text>
+</g>
+<g >
+<title>do_mas_munmap (8,319,561 samples, 0.75%)</title><rect x="10.0" y="165" width="8.8" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="13.00" y="175.5" ></text>
+</g>
+<g >
+<title>__handle_mm_fault (518,433 samples, 0.05%)</title><rect x="1189.4" y="213" width="0.6" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="1192.45" y="223.5" ></text>
+</g>
+<g >
+<title>__libc_start_call_main (8,319,561 samples, 0.75%)</title><rect x="10.0" y="261" width="8.8" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="13.00" y="271.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_FilterLoop24_C (139,807,484 samples, 12.59%)</title><rect x="181.3" y="293" width="148.6" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="184.31" y="303.5" >w2c_decode__webp__..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8GetValue (2,771,640 samples, 0.25%)</title><rect x="1182.6" y="293" width="2.9" height="15.0" fill="rgb(243,179,42)" rx="2" ry="2" />
+<text  x="1185.58" y="303.5" ></text>
+</g>
+<g >
+<title>unmap_region (8,319,561 samples, 0.75%)</title><rect x="10.0" y="133" width="8.8" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="13.00" y="143.5" ></text>
+</g>
+<g >
+<title>__mod_node_page_state (924,090 samples, 0.08%)</title><rect x="17.9" y="37" width="0.9" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="20.86" y="47.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DC4_C (6,413,917 samples, 0.58%)</title><rect x="94.5" y="293" width="6.8" height="15.0" fill="rgb(222,78,18)" rx="2" ry="2" />
+<text  x="97.49" y="303.5" ></text>
+</g>
+<g >
+<title>get_page_from_freelist (11,081,110 samples, 1.00%)</title><rect x="73.9" y="149" width="11.8" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="76.88" y="159.5" ></text>
+</g>
+<g >
+<title>mem_cgroup_charge_statistics (1,848,205 samples, 0.17%)</title><rect x="63.1" y="165" width="1.9" height="15.0" fill="rgb(232,126,30)" rx="2" ry="2" />
+<text  x="66.09" y="175.5" ></text>
+</g>
+<g >
+<title>do_mas_align_munmap (8,319,561 samples, 0.75%)</title><rect x="10.0" y="149" width="8.8" height="15.0" fill="rgb(232,126,30)" rx="2" ry="2" />
+<text  x="13.00" y="159.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_FilterLoop26_C (84,453,917 samples, 7.60%)</title><rect x="329.9" y="293" width="89.7" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="332.87" y="303.5" >w2c_decode..</text>
+</g>
+<g >
+<title>sync_regs (923,519 samples, 0.08%)</title><rect x="86.6" y="261" width="1.0" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="89.63" y="271.5" ></text>
+</g>
+<g >
+<title>delay_halt_mwaitx (865,621 samples, 0.08%)</title><rect x="418.7" y="85" width="0.9" height="15.0" fill="rgb(234,133,31)" rx="2" ry="2" />
+<text  x="421.68" y="95.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_HFilter16i_C (1,847,859 samples, 0.17%)</title><rect x="714.7" y="293" width="2.0" height="15.0" fill="rgb(254,229,54)" rx="2" ry="2" />
+<text  x="717.71" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_EmitFancyRGB (923,293 samples, 0.08%)</title><rect x="153.9" y="293" width="1.0" height="15.0" fill="rgb(223,86,20)" rx="2" ry="2" />
+<text  x="156.89" y="303.5" ></text>
+</g>
+<g >
+<title>map_vdso (368,604 samples, 0.03%)</title><rect x="19.4" y="181" width="0.4" height="15.0" fill="rgb(227,103,24)" rx="2" ry="2" />
+<text  x="22.39" y="191.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (517,731 samples, 0.05%)</title><rect x="18.8" y="245" width="0.6" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="21.84" y="255.5" ></text>
+</g>
+<g >
+<title>__mod_lruvec_state (1,847,188 samples, 0.17%)</title><rect x="70.9" y="165" width="2.0" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="73.94" y="175.5" ></text>
+</g>
+<g >
+<title>vma_alloc_folio (11,081,110 samples, 1.00%)</title><rect x="73.9" y="197" width="11.8" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="76.88" y="207.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_ReconstructRow (6,466,003 samples, 0.58%)</title><rect x="43.5" y="277" width="6.8" height="15.0" fill="rgb(238,153,36)" rx="2" ry="2" />
+<text  x="46.46" y="287.5" ></text>
+</g>
+<g >
+<title>free_pcppages_bulk (2,772,837 samples, 0.25%)</title><rect x="12.9" y="53" width="3.0" height="15.0" fill="rgb(210,26,6)" rx="2" ry="2" />
+<text  x="15.95" y="63.5" ></text>
+</g>
+<g >
+<title>[unknown] (43,496,301 samples, 3.92%)</title><rect x="10.0" y="293" width="46.2" height="15.0" fill="rgb(210,24,5)" rx="2" ry="2" />
+<text  x="13.00" y="303.5" >[unk..</text>
+</g>
+<g >
+<title>clear_page_rep (924,381 samples, 0.08%)</title><rect x="124.9" y="133" width="0.9" height="15.0" fill="rgb(253,221,52)" rx="2" ry="2" />
+<text  x="127.85" y="143.5" ></text>
+</g>
+<g >
+<title>update_process_times (865,621 samples, 0.08%)</title><rect x="418.7" y="165" width="0.9" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="421.68" y="175.5" ></text>
+</g>
+<g >
+<title>__do_global_dtors_aux (8,319,561 samples, 0.75%)</title><rect x="10.0" y="277" width="8.8" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="13.00" y="287.5" ></text>
+</g>
+<g >
+<title>do_user_addr_fault (2,768,460 samples, 0.25%)</title><rect x="122.9" y="245" width="2.9" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="125.89" y="255.5" ></text>
+</g>
+<g >
+<title>setup_arg_pages (110,879 samples, 0.01%)</title><rect x="19.8" y="181" width="0.1" height="15.0" fill="rgb(222,82,19)" rx="2" ry="2" />
+<text  x="22.78" y="191.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_FinishRow (4,619,299 samples, 0.42%)</title><rect x="419.6" y="293" width="4.9" height="15.0" fill="rgb(227,101,24)" rx="2" ry="2" />
+<text  x="422.60" y="303.5" ></text>
+</g>
+<g >
+<title>tlb_batch_pages_flush (5,547,601 samples, 0.50%)</title><rect x="10.0" y="101" width="5.9" height="15.0" fill="rgb(234,133,32)" rx="2" ry="2" />
+<text  x="13.00" y="111.5" ></text>
+</g>
+<g >
+<title>do_user_addr_fault (23,087,041 samples, 2.08%)</title><rect x="62.1" y="245" width="24.5" height="15.0" fill="rgb(228,108,25)" rx="2" ry="2" />
+<text  x="65.10" y="255.5" >d..</text>
+</g>
+<g >
+<title>pmd_pfn (922,608 samples, 0.08%)</title><rect x="72.9" y="197" width="1.0" height="15.0" fill="rgb(233,129,31)" rx="2" ry="2" />
+<text  x="75.90" y="207.5" ></text>
+</g>
+<g >
+<title>_raw_spin_lock (924,179 samples, 0.08%)</title><rect x="67.0" y="197" width="1.0" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="70.01" y="207.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8ParseProba (923,986 samples, 0.08%)</title><rect x="1188.5" y="293" width="0.9" height="15.0" fill="rgb(237,149,35)" rx="2" ry="2" />
+<text  x="1191.47" y="303.5" ></text>
+</g>
+<g >
+<title>handle_mm_fault (2,768,460 samples, 0.25%)</title><rect x="122.9" y="229" width="2.9" height="15.0" fill="rgb(234,135,32)" rx="2" ry="2" />
+<text  x="125.89" y="239.5" ></text>
+</g>
+<g >
+<title>__munmap (8,319,561 samples, 0.75%)</title><rect x="10.0" y="245" width="8.8" height="15.0" fill="rgb(211,29,7)" rx="2" ry="2" />
+<text  x="13.00" y="255.5" ></text>
+</g>
+<g >
+<title>perf_event_task_tick (865,621 samples, 0.08%)</title><rect x="418.7" y="133" width="0.9" height="15.0" fill="rgb(205,3,0)" rx="2" ry="2" />
+<text  x="421.68" y="143.5" ></text>
+</g>
+<g >
+<title>asm_exc_page_fault (24,931,144 samples, 2.24%)</title><rect x="60.1" y="277" width="26.5" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="63.14" y="287.5" >a..</text>
+</g>
+<g >
+<title>__mod_node_page_state (1,847,188 samples, 0.17%)</title><rect x="70.9" y="149" width="2.0" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="73.94" y="159.5" ></text>
+</g>
+<g >
+<title>vma_alloc_folio (924,381 samples, 0.08%)</title><rect x="124.9" y="197" width="0.9" height="15.0" fill="rgb(245,187,44)" rx="2" ry="2" />
+<text  x="127.85" y="207.5" ></text>
+</g>
+<g >
+<title>up_read (923,856 samples, 0.08%)</title><rect x="85.7" y="229" width="0.9" height="15.0" fill="rgb(209,18,4)" rx="2" ry="2" />
+<text  x="88.65" y="239.5" ></text>
+</g>
+<g >
+<title>folio_batch_move_lru (920,266 samples, 0.08%)</title><rect x="123.9" y="181" width="1.0" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="126.88" y="191.5" ></text>
+</g>
+<g >
+<title>exc_page_fault (2,768,460 samples, 0.25%)</title><rect x="122.9" y="261" width="2.9" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="125.89" y="271.5" ></text>
+</g>
+<g >
+<title>__free_one_page (2,772,837 samples, 0.25%)</title><rect x="12.9" y="37" width="3.0" height="15.0" fill="rgb(210,25,6)" rx="2" ry="2" />
+<text  x="15.95" y="47.5" ></text>
+</g>
+<g >
+<title>__install_special_mapping (368,604 samples, 0.03%)</title><rect x="19.4" y="165" width="0.4" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="22.39" y="175.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_IDecode (9,238,311 samples, 0.83%)</title><rect x="33.6" y="277" width="9.9" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="36.64" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_dlmalloc (518,433 samples, 0.05%)</title><rect x="1189.4" y="293" width="0.6" height="15.0" fill="rgb(250,208,49)" rx="2" ry="2" />
+<text  x="1192.45" y="303.5" ></text>
+</g>
+<g >
+<title>__folio_alloc (11,081,110 samples, 1.00%)</title><rect x="73.9" y="181" width="11.8" height="15.0" fill="rgb(224,91,21)" rx="2" ry="2" />
+<text  x="76.88" y="191.5" ></text>
+</g>
+<g >
+<title>__mod_lruvec_state (924,090 samples, 0.08%)</title><rect x="17.9" y="53" width="0.9" height="15.0" fill="rgb(226,100,24)" rx="2" ry="2" />
+<text  x="20.86" y="63.5" ></text>
+</g>
+<g >
+<title>error_entry (924,166 samples, 0.08%)</title><rect x="1177.7" y="277" width="0.9" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="1180.67" y="287.5" ></text>
+</g>
+<g >
+<title>asm_exc_page_fault (518,433 samples, 0.05%)</title><rect x="1189.4" y="277" width="0.6" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="1192.45" y="287.5" ></text>
+</g>
+<g >
+<title>folio_add_lru (924,302 samples, 0.08%)</title><rect x="68.0" y="197" width="1.0" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="70.99" y="207.5" ></text>
+</g>
+<g >
+<title>__libc_write (517,731 samples, 0.05%)</title><rect x="18.8" y="277" width="0.6" height="15.0" fill="rgb(238,154,37)" rx="2" ry="2" />
+<text  x="21.84" y="287.5" ></text>
+</g>
+<g >
+<title>tick_sched_handle (865,621 samples, 0.08%)</title><rect x="418.7" y="181" width="0.9" height="15.0" fill="rgb(219,68,16)" rx="2" ry="2" />
+<text  x="421.68" y="191.5" ></text>
+</g>
+<g >
+<title>__memmove_avx_unaligned_erms (29,550,547 samples, 2.66%)</title><rect x="56.2" y="293" width="31.4" height="15.0" fill="rgb(205,0,0)" rx="2" ry="2" />
+<text  x="59.22" y="303.5" >__..</text>
+</g>
+<g >
+<title>sysvec_apic_timer_interrupt (865,621 samples, 0.08%)</title><rect x="418.7" y="261" width="0.9" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="421.68" y="271.5" ></text>
+</g>
+<g >
+<title>exc_page_fault (23,087,041 samples, 2.08%)</title><rect x="62.1" y="261" width="24.5" height="15.0" fill="rgb(212,35,8)" rx="2" ry="2" />
+<text  x="65.10" y="271.5" >e..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LDoFillBitWindow (1,847,878 samples, 0.17%)</title><rect x="1185.5" y="293" width="2.0" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="1188.52" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TransformAC3_C (5,543,440 samples, 0.50%)</title><rect x="843.6" y="293" width="5.9" height="15.0" fill="rgb(222,79,19)" rx="2" ry="2" />
+<text  x="846.60" y="303.5" ></text>
+</g>
+<g >
+<title>__vm_munmap (8,319,561 samples, 0.75%)</title><rect x="10.0" y="181" width="8.8" height="15.0" fill="rgb(231,121,28)" rx="2" ry="2" />
+<text  x="13.00" y="191.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (517,731 samples, 0.05%)</title><rect x="18.8" y="261" width="0.6" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="21.84" y="271.5" ></text>
+</g>
+<g >
+<title>unmap_vmas (2,771,960 samples, 0.25%)</title><rect x="15.9" y="117" width="2.9" height="15.0" fill="rgb(243,176,42)" rx="2" ry="2" />
+<text  x="18.89" y="127.5" ></text>
+</g>
+<g >
+<title>error_entry (923,519 samples, 0.08%)</title><rect x="86.6" y="277" width="1.0" height="15.0" fill="rgb(240,163,39)" rx="2" ry="2" />
+<text  x="89.63" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_HFilter8i_C (923,704 samples, 0.08%)</title><rect x="716.7" y="293" width="1.0" height="15.0" fill="rgb(208,16,3)" rx="2" ry="2" />
+<text  x="719.68" y="303.5" ></text>
+</g>
+<g >
+<title>check_preemption_disabled (924,302 samples, 0.08%)</title><rect x="68.0" y="117" width="1.0" height="15.0" fill="rgb(220,73,17)" rx="2" ry="2" />
+<text  x="70.99" y="127.5" ></text>
+</g>
+<g >
+<title>_compound_head (1,847,870 samples, 0.17%)</title><rect x="15.9" y="85" width="2.0" height="15.0" fill="rgb(225,94,22)" rx="2" ry="2" />
+<text  x="18.89" y="95.5" ></text>
+</g>
+<g >
+<title>__x64_sys_execve (479,483 samples, 0.04%)</title><rect x="19.4" y="245" width="0.5" height="15.0" fill="rgb(247,193,46)" rx="2" ry="2" />
+<text  x="22.39" y="255.5" ></text>
+</g>
+<g >
+<title>__mod_lruvec_page_state (924,090 samples, 0.08%)</title><rect x="17.9" y="69" width="0.9" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="20.86" y="79.5" ></text>
+</g>
+<g >
+<title>asm_sysvec_apic_timer_interrupt (865,621 samples, 0.08%)</title><rect x="418.7" y="277" width="0.9" height="15.0" fill="rgb(232,127,30)" rx="2" ry="2" />
+<text  x="421.68" y="287.5" ></text>
+</g>
+<g >
+<title>unmap_page_range (2,771,960 samples, 0.25%)</title><rect x="15.9" y="101" width="2.9" height="15.0" fill="rgb(206,5,1)" rx="2" ry="2" />
+<text  x="18.89" y="111.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_HU4_C (1,848,126 samples, 0.17%)</title><rect x="717.7" y="293" width="1.9" height="15.0" fill="rgb(229,114,27)" rx="2" ry="2" />
+<text  x="720.66" y="303.5" ></text>
+</g>
+<g >
+<title>scheduler_tick (865,621 samples, 0.08%)</title><rect x="418.7" y="149" width="0.9" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="421.68" y="159.5" ></text>
+</g>
+<g >
+<title>hrtimer_interrupt (865,621 samples, 0.08%)</title><rect x="418.7" y="229" width="0.9" height="15.0" fill="rgb(228,109,26)" rx="2" ry="2" />
+<text  x="421.68" y="239.5" ></text>
+</g>
+<g >
+<title>lru_add_fn (924,302 samples, 0.08%)</title><rect x="68.0" y="165" width="1.0" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="70.99" y="175.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_BuildHuffmanTable (4,617,947 samples, 0.42%)</title><rect x="89.6" y="293" width="4.9" height="15.0" fill="rgb(240,161,38)" rx="2" ry="2" />
+<text  x="92.58" y="303.5" ></text>
+</g>
+<g >
+<title>__sysvec_apic_timer_interrupt (865,621 samples, 0.08%)</title><rect x="418.7" y="245" width="0.9" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="421.68" y="255.5" ></text>
+</g>
+<g >
+<title>__mem_cgroup_charge (923,813 samples, 0.08%)</title><rect x="122.9" y="197" width="1.0" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="125.89" y="207.5" ></text>
+</g>
+<g >
+<title>all (1,110,533,386 samples, 100%)</title><rect x="10.0" y="325" width="1180.0" height="15.0" fill="rgb(213,39,9)" rx="2" ry="2" />
+<text  x="13.00" y="335.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DecodeImageStream (923,422 samples, 0.08%)</title><rect x="125.8" y="293" width="1.0" height="15.0" fill="rgb(254,228,54)" rx="2" ry="2" />
+<text  x="128.84" y="303.5" ></text>
+</g>
+<g >
+<title>do_syscall_64 (8,319,561 samples, 0.75%)</title><rect x="10.0" y="213" width="8.8" height="15.0" fill="rgb(209,20,4)" rx="2" ry="2" />
+<text  x="13.00" y="223.5" ></text>
+</g>
+<g >
+<title>tick_sched_timer (865,621 samples, 0.08%)</title><rect x="418.7" y="197" width="0.9" height="15.0" fill="rgb(254,227,54)" rx="2" ry="2" />
+<text  x="421.68" y="207.5" ></text>
+</g>
+<g >
+<title>entry_SYSCALL_64_after_hwframe (8,319,561 samples, 0.75%)</title><rect x="10.0" y="229" width="8.8" height="15.0" fill="rgb(218,63,15)" rx="2" ry="2" />
+<text  x="13.00" y="239.5" ></text>
+</g>
+<g >
+<title>try_charge_memcg (921,735 samples, 0.08%)</title><rect x="65.0" y="165" width="1.0" height="15.0" fill="rgb(210,27,6)" rx="2" ry="2" />
+<text  x="68.05" y="175.5" ></text>
+</g>
+<g >
+<title>__mem_cgroup_charge (3,693,632 samples, 0.33%)</title><rect x="63.1" y="197" width="3.9" height="15.0" fill="rgb(218,60,14)" rx="2" ry="2" />
+<text  x="66.09" y="207.5" ></text>
+</g>
+<g >
+<title>do_execveat_common.isra.0 (479,483 samples, 0.04%)</title><rect x="19.4" y="229" width="0.5" height="15.0" fill="rgb(231,123,29)" rx="2" ry="2" />
+<text  x="22.39" y="239.5" ></text>
+</g>
+<g >
+<title>file_tty_write.constprop.0 (517,731 samples, 0.05%)</title><rect x="18.8" y="197" width="0.6" height="15.0" fill="rgb(219,64,15)" rx="2" ry="2" />
+<text  x="21.84" y="207.5" ></text>
+</g>
+<g >
+<title>preempt_count_add (923,856 samples, 0.08%)</title><rect x="85.7" y="213" width="0.9" height="15.0" fill="rgb(253,222,53)" rx="2" ry="2" />
+<text  x="88.65" y="223.5" ></text>
+</g>
+<g >
+<title>__handle_mm_fault (21,238,977 samples, 1.91%)</title><rect x="63.1" y="213" width="22.6" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="66.09" y="223.5" >_..</text>
+</g>
+<g >
+<title>__mod_lruvec_page_state (3,693,146 samples, 0.33%)</title><rect x="69.0" y="181" width="3.9" height="15.0" fill="rgb(245,185,44)" rx="2" ry="2" />
+<text  x="71.97" y="191.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TransformDC_C (2,771,437 samples, 0.25%)</title><rect x="849.5" y="293" width="2.9" height="15.0" fill="rgb(232,125,30)" rx="2" ry="2" />
+<text  x="852.49" y="303.5" ></text>
+</g>
+<g >
+<title>__alloc_pages (11,081,110 samples, 1.00%)</title><rect x="73.9" y="165" width="11.8" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="76.88" y="175.5" ></text>
+</g>
+<g >
+<title>__x64_sys_munmap (8,319,561 samples, 0.75%)</title><rect x="10.0" y="197" width="8.8" height="15.0" fill="rgb(206,7,1)" rx="2" ry="2" />
+<text  x="13.00" y="207.5" ></text>
+</g>
+<g >
+<title>charge_memcg (2,769,940 samples, 0.25%)</title><rect x="63.1" y="181" width="2.9" height="15.0" fill="rgb(242,170,40)" rx="2" ry="2" />
+<text  x="66.09" y="191.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_GetCoeffsFast (9,238,584 samples, 0.83%)</title><rect x="21.9" y="277" width="9.8" height="15.0" fill="rgb(232,124,29)" rx="2" ry="2" />
+<text  x="24.86" y="287.5" ></text>
+</g>
+<g >
+<title>__mod_node_page_state (518,433 samples, 0.05%)</title><rect x="1189.4" y="133" width="0.6" height="15.0" fill="rgb(213,38,9)" rx="2" ry="2" />
+<text  x="1192.45" y="143.5" ></text>
+</g>
+<g >
+<title>lru_add_fn (920,266 samples, 0.08%)</title><rect x="123.9" y="165" width="1.0" height="15.0" fill="rgb(208,14,3)" rx="2" ry="2" />
+<text  x="126.88" y="175.5" ></text>
+</g>
+<g >
+<title>asm_exc_page_fault (4,616,436 samples, 0.42%)</title><rect x="120.9" y="277" width="4.9" height="15.0" fill="rgb(225,93,22)" rx="2" ry="2" />
+<text  x="123.93" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_IDecode (77,400,629 samples, 6.97%)</title><rect x="719.6" y="293" width="82.3" height="15.0" fill="rgb(208,15,3)" rx="2" ry="2" />
+<text  x="722.62" y="303.5" >w2c_decod..</text>
+</g>
+<g >
+<title>folio_add_lru (518,433 samples, 0.05%)</title><rect x="1189.4" y="197" width="0.6" height="15.0" fill="rgb(208,17,4)" rx="2" ry="2" />
+<text  x="1192.45" y="207.5" ></text>
+</g>
+<g >
+<title>folio_batch_move_lru (518,433 samples, 0.05%)</title><rect x="1189.4" y="181" width="0.6" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="1192.45" y="191.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VP8LReadBits (924,002 samples, 0.08%)</title><rect x="1187.5" y="293" width="1.0" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="1190.49" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DC8uv_C (1,847,194 samples, 0.17%)</title><rect x="101.3" y="293" width="2.0" height="15.0" fill="rgb(228,106,25)" rx="2" ry="2" />
+<text  x="104.30" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TransformUV_C (923,647 samples, 0.08%)</title><rect x="54.3" y="277" width="0.9" height="15.0" fill="rgb(249,206,49)" rx="2" ry="2" />
+<text  x="57.25" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TM4_C (2,772,734 samples, 0.25%)</title><rect x="840.7" y="293" width="2.9" height="15.0" fill="rgb(254,226,54)" rx="2" ry="2" />
+<text  x="843.65" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TM16_C (8,312,011 samples, 0.75%)</title><rect x="831.8" y="293" width="8.9" height="15.0" fill="rgb(224,90,21)" rx="2" ry="2" />
+<text  x="834.82" y="303.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_HD4_C (1,847,309 samples, 0.17%)</title><rect x="711.8" y="293" width="1.9" height="15.0" fill="rgb(239,160,38)" rx="2" ry="2" />
+<text  x="714.77" y="303.5" ></text>
+</g>
+<g >
+<title>folio_batch_move_lru (924,302 samples, 0.08%)</title><rect x="68.0" y="181" width="1.0" height="15.0" fill="rgb(207,10,2)" rx="2" ry="2" />
+<text  x="70.99" y="191.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TransformOne_C (923,749 samples, 0.08%)</title><rect x="53.3" y="277" width="1.0" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="56.27" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TransformOne_C (59,859,841 samples, 5.39%)</title><rect x="852.4" y="293" width="63.6" height="15.0" fill="rgb(231,120,28)" rx="2" ry="2" />
+<text  x="855.44" y="303.5" >w2c_de..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VFilter8_C (924,033 samples, 0.08%)</title><rect x="55.2" y="277" width="1.0" height="15.0" fill="rgb(246,190,45)" rx="2" ry="2" />
+<text  x="58.24" y="287.5" ></text>
+</g>
+<g >
+<title>__rcu_read_lock (923,692 samples, 0.08%)</title><rect x="66.0" y="165" width="1.0" height="15.0" fill="rgb(220,69,16)" rx="2" ry="2" />
+<text  x="69.03" y="175.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_TransformDCUV_C (924,148 samples, 0.08%)</title><rect x="50.3" y="277" width="1.0" height="15.0" fill="rgb(227,104,25)" rx="2" ry="2" />
+<text  x="53.33" y="287.5" ></text>
+</g>
+<g >
+<title>__memset_avx2_unaligned_erms (1,848,077 samples, 0.17%)</title><rect x="87.6" y="293" width="2.0" height="15.0" fill="rgb(223,84,20)" rx="2" ry="2" />
+<text  x="90.62" y="303.5" ></text>
+</g>
+<g >
+<title>get_page_from_freelist (924,381 samples, 0.08%)</title><rect x="124.9" y="149" width="0.9" height="15.0" fill="rgb(252,218,52)" rx="2" ry="2" />
+<text  x="127.85" y="159.5" ></text>
+</g>
+<g >
+<title>__alloc_pages (924,381 samples, 0.08%)</title><rect x="124.9" y="165" width="0.9" height="15.0" fill="rgb(233,129,30)" rx="2" ry="2" />
+<text  x="127.85" y="175.5" ></text>
+</g>
+<g >
+<title>__handle_mm_fault (2,768,460 samples, 0.25%)</title><rect x="122.9" y="213" width="2.9" height="15.0" fill="rgb(207,9,2)" rx="2" ry="2" />
+<text  x="125.89" y="223.5" ></text>
+</g>
+<g >
+<title>rmqueue_bulk (3,695,321 samples, 0.33%)</title><rect x="81.7" y="133" width="4.0" height="15.0" fill="rgb(235,138,33)" rx="2" ry="2" />
+<text  x="84.73" y="143.5" ></text>
+</g>
+<g >
+<title>page_remove_rmap (924,090 samples, 0.08%)</title><rect x="17.9" y="85" width="0.9" height="15.0" fill="rgb(252,219,52)" rx="2" ry="2" />
+<text  x="20.86" y="95.5" ></text>
+</g>
+<g >
+<title>vfs_write (517,731 samples, 0.05%)</title><rect x="18.8" y="213" width="0.6" height="15.0" fill="rgb(250,209,50)" rx="2" ry="2" />
+<text  x="21.84" y="223.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DispatchAlpha_C (25,479,590 samples, 2.29%)</title><rect x="126.8" y="293" width="27.1" height="15.0" fill="rgb(219,65,15)" rx="2" ry="2" />
+<text  x="129.82" y="303.5" >w..</text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_DecodeImageData (923,048 samples, 0.08%)</title><rect x="19.9" y="277" width="1.0" height="15.0" fill="rgb(217,59,14)" rx="2" ry="2" />
+<text  x="22.90" y="287.5" ></text>
+</g>
+<g >
+<title>w2c_decode__webp__wasm_VFilter16_C (924,213 samples, 0.08%)</title><rect x="1180.6" y="293" width="1.0" height="15.0" fill="rgb(242,173,41)" rx="2" ry="2" />
+<text  x="1183.61" y="303.5" ></text>
+</g>
+</g>
+</svg>

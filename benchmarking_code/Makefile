@@ -14,11 +14,11 @@ WASM2C_DEP=${WABT_PATH}/share/wabt/wasm2c/wasm-rt-impl.c ${WABT_PATH}/share/wabt
 WASMSIMD_FLAGS=-DENABLE_SIMD -I${SIMDE_PATH}
 
 # Set this to -DOUTPUT_IMAGE to produce an output file
-OUTPUT_IMAGE=-DOUTPUT_IMAGE
+OUTPUT_IMAGE=#-DOUTPUT_IMAGE
 # Set this to -DINCREMENTAL to use the incremental decoder
 INCREMENTAL=-DINCREMENTAL
 
-COMPILE_FLAGS=-g -O2 -static ${OUTPUT_IMAGE} ${INCREMENTAL}
+COMPILE_FLAGS=-g -O2 -static ${OUTPUT_IMAGE} ${INCREMENTAL} -mavx2
 
 ifdef OUTPUT_IMAGE
 UVWASI_RESOURCES=uvwasi-rt.c $(UVWASI_PATH)/out/cmake/libuvwasi_a.a $(UVWASI_PATH)/out/cmake/_deps/libuv-build/libuv_a.a -I $(UVWASI_PATH)/include/
@@ -26,9 +26,9 @@ else
 UVWASI_RESOURCES=
 endif
 
-.PHONY: native wasm
+.PHONY: native wasm wasmsimdnointrinsics
 
-all: native wasm
+all: native wasm wasmsimdnointrinsics
 
 clean:
 	rm decode_webp_native* decode_webp_wasm*
@@ -60,3 +60,8 @@ decode_webp_wasmsimd: main_wasm.c decode_webp_wasmsimd.c
 native: decode_webp_native decode_webp_nativesimd
 
 wasm: decode_webp_wasm decode_webp_wasmsimd
+
+wasmsimdnointrinsics: main_wasm.c decode_webp.c
+	${WASI_CLANG} ${WASI_LDFLAGS} ${WASI_FLAGS} decode_webp.c -o decode_webp_wasmsimd_no_intrin.wasm -I../libwebp_wasmsimd_no_intrinsics/include/ -L../libwebp_wasmsimd_no_intrinsics/lib/ -lwebp ${OUTPUT_IMAGE} ${INCREMENTAL} ${WASI_SIMD_FLAGS}
+	${WASM2C_BIN} decode_webp_wasmsimd_no_intrin.wasm -o decode_webp_wasmsimd_no_intrin.c --module-name decode_webp_wasmsimd
+	${CC} ${COMPILE_FLAGS} -o decode_webp_wasmsimd_no_intrinsics decode_webp_wasmsimd_no_intrin.c main_wasm.c ${WASM2C_DEP} ${UVWASI_RESOURCES} ${WASMSIMD_FLAGS}

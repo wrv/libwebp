@@ -49,3 +49,8 @@ On input `./test.webp`:
 |:-----------:|:----------:|:--------:|
 | **No SIMD** |            |          |
 | **SIMD**    |            |          |
+
+
+## Performance Issues
+
+A big performance difference is coming from `VP8ParseIntraModeRow` between Native and WASM.

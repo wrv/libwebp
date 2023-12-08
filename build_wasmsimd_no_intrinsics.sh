@@ -4,7 +4,7 @@ fi
 
 make clean > /dev/null
 echo "Building WASM+SIMD version of libwebp (autovectorized; no intrinsics)"
-curprefix=$(pwd)/libwebp_wasmsimd
+curprefix=$(pwd)/libwebp_wasmsimd_no_intrinsics
 mkdir -p ${curprefix}
 
 CFLAGS="-msimd128 -O2 -D_WASI_EMULATED_SIGNAL" \

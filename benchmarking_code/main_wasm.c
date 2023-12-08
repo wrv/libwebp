@@ -150,7 +150,7 @@ int main(int argc, const char** argv) {
   w2c_decode__webp__wasm_DecodeWebpImage(&inst, webp_file, data_size, iterations, result, result_size);
 #endif
   const double dt = StopwatchReadAndReset(&stop_watch);
-  fprintf(stderr, "Time for %d decode iterations: %.10fs\n", iterations, dt);
+  fprintf(stderr, "Time to decode %s %d times: %.10fs\n", in_file, iterations, dt);
   fprintf(out_time, "%f\n", dt);
 
   u32 size = *(u32*) (&mem->data[result_size]);

@@ -1,8 +1,10 @@
 N=20
 logname=benchmark_log.txt
 indir=inputs_less
-outdir=results_less_incremental_w_output_and_flame
-test="Incremental Decoder w Output"
+outdir=results_less_disable_use_generic_tree
+test="Disable USE_GENERIC_TREE"
+
+# May not work with lossless
 
 echo "" > ${logname}
 mkdir -p ${outdir}
@@ -18,7 +20,7 @@ do
             ./decode_webp_${testname} inputs/${imagename} ${outdir}/${imagename}_${testname}.csv ${outdir}/${imagename}_${testname}.ppm >> ${logname} 2>&1
         done
         python3 stat_analysis.py "${outdir}/${imagename}_${testname}.csv" "${outdir}/${imagename}_${testname}_stats.txt" "${imagename} with ${testname}" "${outdir}/${imagename}_${testname}_stats.png"
-        ./gen_flamegraph.sh $testname $imagename $outdir
+        #./gen_flamegraph.sh $testname $imagename $outdir
     done
 done
 

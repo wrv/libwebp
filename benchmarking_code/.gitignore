@@ -6,3 +6,5 @@ outputs/
 benchmark_log.txt
 xray-log.*
 tmp/
+perf.*
+*.ppm
