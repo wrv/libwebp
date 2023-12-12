@@ -11,7 +11,7 @@ echo "Building WASM+SIMD version of libwebp"
 curprefix=$(pwd)/libwebp_wasmsimd
 mkdir -p ${curprefix}
 
-CFLAGS="-msimd128 -O2 -DWEBP_USE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -I${SIMDE_PATH} -D_WASI_EMULATED_SIGNAL" \
+CFLAGS="-O2 -msimd128 -DWEBP_USE_SIMDE -DSIMDE_ENABLE_NATIVE_ALIASES -I${SIMDE_PATH} -D_WASI_EMULATED_SIGNAL" \
 LDFLAGS="-L${WASI_SDK_PATH}/share/wasi-sysroot/lib \
 	-Wl,--no-entry \
 	-Wl,--export-all \

@@ -1,8 +1,8 @@
 N=20
 logname=benchmark_log.txt
 indir=inputs_less
-outdir=results_less_disable_use_generic_tree
-test="Disable USE_GENERIC_TREE"
+outdir=results_less_O1
+test="Compiled the libraries with O1"
 
 # May not work with lossless
 
@@ -22,6 +22,7 @@ do
         python3 stat_analysis.py "${outdir}/${imagename}_${testname}.csv" "${outdir}/${imagename}_${testname}_stats.txt" "${imagename} with ${testname}" "${outdir}/${imagename}_${testname}_stats.png"
         #./gen_flamegraph.sh $testname $imagename $outdir
     done
+    sha256sum ${outdir}/${imagename}_*.ppm
 done
 
 python comp_analysis.py ${indir} ${outdir} "${test}"

@@ -28,7 +28,7 @@ endif
 
 .PHONY: native wasm wasmsimdnointrinsics
 
-all: native wasm wasmsimdnointrinsics
+all: native wasm
 
 clean:
 	rm decode_webp_native* decode_webp_wasm*

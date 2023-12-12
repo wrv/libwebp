@@ -44,7 +44,7 @@ int WebPWritePPM(WebPDecoderConfig *config, uint8_t** result, size_t* result_siz
   }
   free(header);
   return 1;
-} 
+}
 #endif
 
 
@@ -58,6 +58,7 @@ int DecodeWebpImage(const uint8_t* data, size_t data_size, int iterations, uint8
   WebPInitDecoderConfig(&config);
   // Used for writing PPM
   // Firefox has the following snippet of code:
+  // https://searchfox.org/mozilla-central/source/image/decoders/nsWebPDecoder.cpp#224
   //   case SurfaceFormat::B8G8R8A8:
   //     mBuffer.colorspace = MODE_BGRA;
   //     break;
@@ -68,7 +69,7 @@ int DecodeWebpImage(const uint8_t* data, size_t data_size, int iterations, uint8
   //     mBuffer.colorspace = MODE_RGBA;
   //     break;
   //   default:
-  output_buffer->colorspace = MODE_RGBA;
+  output_buffer->colorspace = MODE_RGB; // Firefox only reads the RGB so we keep this simple
 
 #ifdef INCREMENTAL
   for(int i = 0; i < iterations; i++){
@@ -92,6 +93,7 @@ int DecodeWebpImage(const uint8_t* data, size_t data_size, int iterations, uint8
   if (status == VP8_STATUS_OK) ok = 1;
 
 #ifdef OUTPUT_IMAGE
+  // Firefox calls WebPIDecGetRGB to get the values to write out
   ok = WebPWritePPM(&config, result, result_size);
 #endif
 
