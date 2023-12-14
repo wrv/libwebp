@@ -30,6 +30,7 @@ def generate_data():
   for f in input_filenames:
     data[f] = {}
     for t in test_types:
+      #data[f][t] = (-1, [-1]) # Default throwaway values
       results_file = os.path.join(results_dir, f + "_" + t + ".csv")
       try:
         raw_data = np.genfromtxt(results_file,delimiter='\n')
@@ -122,17 +123,27 @@ def generate_bar(data):
 
     print(x_axis)
     print(y_axis)
-    subplots[subplot_idx].bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
-    for i in range(len(x_axis)):
-      subplots[subplot_idx].text(i, y_axis[i], y_axis[i], rotation=60, rotation_mode='anchor')
-    subplots[subplot_idx].set(xlabel=f)
-    subplots[subplot_idx].axes.get_xaxis().set_ticks([])
-    subplot_idx += 1
+    if len(data.keys()) > 1:
+      subplots[subplot_idx].bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
+      for i in range(len(x_axis)):
+        subplots[subplot_idx].text(i, y_axis[i], y_axis[i], rotation=60, rotation_mode='anchor')
+      subplots[subplot_idx].set(xlabel=f)
+      subplots[subplot_idx].axes.get_xaxis().set_ticks([])
+      subplot_idx += 1
+    else:
+      # If only 1 file, then there are no subplots - it's just 1
+      subplots.bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
+      for i in range(len(x_axis)):
+        subplots.text(i, y_axis[i], y_axis[i], rotation=60, rotation_mode='anchor')
+      subplots.set(xlabel=f)
+      subplots.axes.get_xaxis().set_ticks([])
   
   for ax in fig.get_axes():
     ax.label_outer()
-
-  subplots[0].set(ylabel="Time [s]")
+  if len(data.keys()) > 1:
+    subplots[0].set(ylabel="Time [s]")
+  else:
+    subplots.set(ylabel="Time [s]")
   labels = list(test_type_colors.keys())
   handles = [plt.Rectangle((0,0),1,1, color=test_type_colors[label], alpha=0.5) for label in labels]
   if testname != "":

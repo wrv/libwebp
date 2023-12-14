@@ -55,7 +55,9 @@ int DecodeWebpImage(const uint8_t* data, size_t data_size, int iterations, uint8
   WebPDecoderConfig config;
   WebPDecBuffer* const output_buffer = &config.output;
   WebPBitstreamFeatures* const bitstream = &config.input;
-  WebPInitDecoderConfig(&config);
+  if (!WebPInitDecoderConfig(&config)){
+    return -1;
+  }
   // Used for writing PPM
   // Firefox has the following snippet of code:
   // https://searchfox.org/mozilla-central/source/image/decoders/nsWebPDecoder.cpp#224
