@@ -1,10 +1,13 @@
-decode_webp_native*
-decode_webp_nativesimd*
-decode_webp_wasm*
-decode_webp_wasmsimd*
+decode_webp_wasm.c
+decode_webp_wasm.h
+decode_webp_wasm.wasm
+decode_webp_wasmsimd.c
+decode_webp_wasmsimd.h
+decode_webp_wasmsimd.wasm
 outputs/
 benchmark_log.txt
 xray-log.*
 tmp/
 perf.*
 *.ppm
+bin/

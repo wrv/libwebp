@@ -17,11 +17,11 @@ do
     for i in $(seq 1 $N)
     do
         echo ./decode_webp_${testname} inputs/${imagename} ${outdir}/${imagename}_${testname}.csv >> ${logname}
-        ./decode_webp_${testname} inputs/${imagename} ${outdir}/${imagename}_${testname}.csv ${outdir}/${imagename}_${testname}.ppm >> ${logname} 2>&1
+        bin/decode_webp_${testname} inputs/${imagename} ${outdir}/${imagename}_${testname}.csv ${outdir}/${imagename}_${testname}.ppm >> ${logname} 2>&1
     done
     python3 stat_analysis.py "${outdir}/${imagename}_${testname}.csv" "${outdir}/${imagename}_${testname}_stats.txt" "${imagename} with ${testname}" "${outdir}/${imagename}_${testname}_stats.png"
-    cp ./decode_webp_${testname} ${outdir}/decode_webp_${testname}
-    objdump -d ./decode_webp_${testname} > ${outdir}/decode_webp_${testname}.objdump
+    cp bin/decode_webp_${testname} ${outdir}/decode_webp_${testname}
+    objdump -d bin/decode_webp_${testname} > ${outdir}/decode_webp_${testname}.objdump
 done
 
 python comp_analysis.py ${indir} ${outdir} "${test}"
