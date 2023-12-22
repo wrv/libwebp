@@ -14,7 +14,7 @@ CFLAGS="-O2" \
 --disable-jpeg \
 --disable-threading \
 --enable-sse2 \
---disable-sse4.1
+--enable-sse4.1
 
 sed -i 's|#define HAVE_DLFCN_H 1|/\* #undef HAVE_DLFCN_H \*/|' src/webp/config.h
 

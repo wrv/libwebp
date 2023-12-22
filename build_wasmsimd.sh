@@ -33,11 +33,12 @@ RANLIB=${WASI_SDK_PATH}/bin/ranlib \
 --disable-tiff \
 --disable-jpeg \
 --disable-threading \
---enable-sse2
+--enable-sse2 \
+--enable-sse4.1
 
 # Apply patch to enable SSE4.1 and SSE2
 
-#sed -i 's|/\* #undef WEBP_HAVE_SSE41 \*/|#define WEBP_HAVE_SSE41 1|' src/webp/config.h
+sed -i 's|/\* #undef WEBP_HAVE_SSE41 \*/|#define WEBP_HAVE_SSE41 1|' src/webp/config.h
 sed -i 's|/\* #undef WEBP_HAVE_SSE2 \*/|#define WEBP_HAVE_SSE2 1|' src/webp/config.h
 
 make

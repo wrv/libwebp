@@ -1,8 +1,8 @@
 N=20
 logname=benchmark_log.txt
 indir=inputs_less
-outdir=tmp/results_less_O1
-test="Compiled the libraries with O1"
+outdir=tmp/results_less_allthechanges
+test="Complete Decode"
 
 # May not work with lossless
 

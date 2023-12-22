@@ -1,0 +1,223 @@
+diff --git a/src/dec/tree_dec.c b/src/dec/tree_dec.c
+index 24346059..b9be9c8d 100644
+--- a/src/dec/tree_dec.c
++++ b/src/dec/tree_dec.c
+@@ -297,21 +297,21 @@ static void ParseIntraMode(VP8BitReader* const br,
+   // to decode more than 1 keyframe.
+   if (dec->segment_hdr_.update_map_) {
+     // Hardcoded tree parsing
+-    block->segment_ = !VP8GetBit(br, dec->proba_.segments_[0], "segments")
+-                    ?  VP8GetBit(br, dec->proba_.segments_[1], "segments")
+-                    :  VP8GetBit(br, dec->proba_.segments_[2], "segments") + 2;
++    block->segment_ = !VP8GetBitAlt(br, dec->proba_.segments_[0], "segments")
++                    ?  VP8GetBitAlt(br, dec->proba_.segments_[1], "segments")
++                    :  VP8GetBitAlt(br, dec->proba_.segments_[2], "segments") + 2;
+   } else {
+     block->segment_ = 0;  // default for intra
+   }
+-  if (dec->use_skip_proba_) block->skip_ = VP8GetBit(br, dec->skip_p_, "skip");
++  if (dec->use_skip_proba_) block->skip_ = VP8GetBitAlt(br, dec->skip_p_, "skip");
+ 
+-  block->is_i4x4_ = !VP8GetBit(br, 145, "block-size");
++  block->is_i4x4_ = !VP8GetBitAlt(br, 145, "block-size");
+   if (!block->is_i4x4_) {
+     // Hardcoded 16x16 intra-mode decision tree.
+     const int ymode =
+-        VP8GetBit(br, 156, "pred-modes") ?
+-            (VP8GetBit(br, 128, "pred-modes") ? TM_PRED : H_PRED) :
+-            (VP8GetBit(br, 163, "pred-modes") ? V_PRED : DC_PRED);
++        VP8GetBitAlt(br, 156, "pred-modes") ?
++            (VP8GetBitAlt(br, 128, "pred-modes") ? TM_PRED : H_PRED) :
++            (VP8GetBitAlt(br, 163, "pred-modes") ? V_PRED : DC_PRED);
+     block->imodes_[0] = ymode;
+     memset(top, ymode, 4 * sizeof(*top));
+     memset(left, ymode, 4 * sizeof(*left));
+@@ -325,23 +325,23 @@ static void ParseIntraMode(VP8BitReader* const br,
+         const uint8_t* const prob = kBModesProba[top[x]][ymode];
+ #if (USE_GENERIC_TREE == 1)
+         // Generic tree-parsing
+-        int i = kYModesIntra4[VP8GetBit(br, prob[0], "pred-modes")];
++        int i = kYModesIntra4[VP8GetBitAlt(br, prob[0], "pred-modes")];
+         while (i > 0) {
+-          i = kYModesIntra4[2 * i + VP8GetBit(br, prob[i], "pred-modes")];
++          i = kYModesIntra4[2 * i + VP8GetBitAlt(br, prob[i], "pred-modes")];
+         }
+         ymode = -i;
+ #else
+         // Hardcoded tree parsing
+-        ymode = !VP8GetBit(br, prob[0], "pred-modes") ? B_DC_PRED :
+-                  !VP8GetBit(br, prob[1], "pred-modes") ? B_TM_PRED :
+-                    !VP8GetBit(br, prob[2], "pred-modes") ? B_VE_PRED :
+-                      !VP8GetBit(br, prob[3], "pred-modes") ?
+-                        (!VP8GetBit(br, prob[4], "pred-modes") ? B_HE_PRED :
+-                          (!VP8GetBit(br, prob[5], "pred-modes") ? B_RD_PRED
++        ymode = !VP8GetBitAlt(br, prob[0], "pred-modes") ? B_DC_PRED :
++                  !VP8GetBitAlt(br, prob[1], "pred-modes") ? B_TM_PRED :
++                    !VP8GetBitAlt(br, prob[2], "pred-modes") ? B_VE_PRED :
++                      !VP8GetBitAlt(br, prob[3], "pred-modes") ?
++                        (!VP8GetBitAlt(br, prob[4], "pred-modes") ? B_HE_PRED :
++                          (!VP8GetBitAlt(br, prob[5], "pred-modes") ? B_RD_PRED
+                                                                  : B_VR_PRED)) :
+-                        (!VP8GetBit(br, prob[6], "pred-modes") ? B_LD_PRED :
+-                          (!VP8GetBit(br, prob[7], "pred-modes") ? B_VL_PRED :
+-                            (!VP8GetBit(br, prob[8], "pred-modes") ? B_HD_PRED
++                        (!VP8GetBitAlt(br, prob[6], "pred-modes") ? B_LD_PRED :
++                          (!VP8GetBitAlt(br, prob[7], "pred-modes") ? B_VL_PRED :
++                            (!VP8GetBitAlt(br, prob[8], "pred-modes") ? B_HD_PRED
+                                                                    : B_HU_PRED))
+                         );
+ #endif  // USE_GENERIC_TREE
+@@ -353,9 +353,9 @@ static void ParseIntraMode(VP8BitReader* const br,
+     }
+   }
+   // Hardcoded UVMode decision tree
+-  block->uvmode_ = !VP8GetBit(br, 142, "pred-modes-uv") ? DC_PRED
+-                 : !VP8GetBit(br, 114, "pred-modes-uv") ? V_PRED
+-                 : VP8GetBit(br, 183, "pred-modes-uv") ? TM_PRED : H_PRED;
++  block->uvmode_ = !VP8GetBitAlt(br, 142, "pred-modes-uv") ? DC_PRED
++                 : !VP8GetBitAlt(br, 114, "pred-modes-uv") ? V_PRED
++                 : VP8GetBitAlt(br, 183, "pred-modes-uv") ? TM_PRED : H_PRED;
+ }
+ 
+ int VP8ParseIntraModeRow(VP8BitReader* const br, VP8Decoder* const dec) {
+@@ -520,7 +520,7 @@ void VP8ParseProba(VP8BitReader* const br, VP8Decoder* const dec) {
+       for (c = 0; c < NUM_CTX; ++c) {
+         for (p = 0; p < NUM_PROBAS; ++p) {
+           const int v =
+-              VP8GetBit(br, CoeffsUpdateProba[t][b][c][p], "global-header") ?
++              VP8GetBitAlt(br, CoeffsUpdateProba[t][b][c][p], "global-header") ?
+                         VP8GetValue(br, 8, "global-header") :
+                         CoeffsProba0[t][b][c][p];
+           proba->bands_[t][b].probas_[c][p] = v;
+diff --git a/src/dec/vp8_dec.c b/src/dec/vp8_dec.c
+index 2ee89006..b3b3982e 100644
+--- a/src/dec/vp8_dec.c
++++ b/src/dec/vp8_dec.c
+@@ -410,28 +410,28 @@ static const uint8_t kZigzag[16] = {
+ // See section 13-2: https://datatracker.ietf.org/doc/html/rfc6386#section-13.2
+ static int GetLargeValue(VP8BitReader* const br, const uint8_t* const p) {
+   int v;
+-  if (!VP8GetBit(br, p[3], "coeffs")) {
+-    if (!VP8GetBit(br, p[4], "coeffs")) {
++  if (!VP8GetBitAlt(br, p[3], "coeffs")) {
++    if (!VP8GetBitAlt(br, p[4], "coeffs")) {
+       v = 2;
+     } else {
+-      v = 3 + VP8GetBit(br, p[5], "coeffs");
++      v = 3 + VP8GetBitAlt(br, p[5], "coeffs");
+     }
+   } else {
+-    if (!VP8GetBit(br, p[6], "coeffs")) {
+-      if (!VP8GetBit(br, p[7], "coeffs")) {
+-        v = 5 + VP8GetBit(br, 159, "coeffs");
++    if (!VP8GetBitAlt(br, p[6], "coeffs")) {
++      if (!VP8GetBitAlt(br, p[7], "coeffs")) {
++        v = 5 + VP8GetBitAlt(br, 159, "coeffs");
+       } else {
+-        v = 7 + 2 * VP8GetBit(br, 165, "coeffs");
+-        v += VP8GetBit(br, 145, "coeffs");
++        v = 7 + 2 * VP8GetBitAlt(br, 165, "coeffs");
++        v += VP8GetBitAlt(br, 145, "coeffs");
+       }
+     } else {
+       const uint8_t* tab;
+-      const int bit1 = VP8GetBit(br, p[8], "coeffs");
+-      const int bit0 = VP8GetBit(br, p[9 + bit1], "coeffs");
++      const int bit1 = VP8GetBitAlt(br, p[8], "coeffs");
++      const int bit0 = VP8GetBitAlt(br, p[9 + bit1], "coeffs");
+       const int cat = 2 * bit1 + bit0;
+       v = 0;
+       for (tab = kCat3456[cat]; *tab; ++tab) {
+-        v += v + VP8GetBit(br, *tab, "coeffs");
++        v += v + VP8GetBitAlt(br, *tab, "coeffs");
+       }
+       v += 3 + (8 << cat);
+     }
+@@ -439,34 +439,6 @@ static int GetLargeValue(VP8BitReader* const br, const uint8_t* const p) {
+   return v;
+ }
+ 
+-// Returns the position of the last non-zero coeff plus one
+-static int GetCoeffsFast(VP8BitReader* const br,
+-                         const VP8BandProbas* const prob[],
+-                         int ctx, const quant_t dq, int n, int16_t* out) {
+-  const uint8_t* p = prob[n]->probas_[ctx];
+-  for (; n < 16; ++n) {
+-    if (!VP8GetBit(br, p[0], "coeffs")) {
+-      return n;  // previous coeff was last non-zero coeff
+-    }
+-    while (!VP8GetBit(br, p[1], "coeffs")) {       // sequence of zero coeffs
+-      p = prob[++n]->probas_[0];
+-      if (n == 16) return 16;
+-    }
+-    {        // non zero coeff
+-      const VP8ProbaArray* const p_ctx = &prob[n + 1]->probas_[0];
+-      int v;
+-      if (!VP8GetBit(br, p[2], "coeffs")) {
+-        v = 1;
+-        p = p_ctx[1];
+-      } else {
+-        v = GetLargeValue(br, p);
+-        p = p_ctx[2];
+-      }
+-      out[kZigzag[n]] = VP8GetSigned(br, v, "coeffs") * dq[n > 0];
+-    }
+-  }
+-  return 16;
+-}
+ 
+ // This version of GetCoeffs() uses VP8GetBitAlt() which is an alternate version
+ // of VP8GetBitAlt() targeting specific platforms.
+@@ -501,11 +473,7 @@ static int GetCoeffsAlt(VP8BitReader* const br,
+ extern VP8CPUInfo VP8GetCPUInfo;
+ 
+ WEBP_DSP_INIT_FUNC(InitGetCoeffs) {
+-  if (VP8GetCPUInfo != NULL && VP8GetCPUInfo(kSlowSSSE3)) {
+-    GetCoeffs = GetCoeffsAlt;
+-  } else {
+-    GetCoeffs = GetCoeffsFast;
+-  }
++  GetCoeffs = GetCoeffsAlt;  
+ }
+ 
+ static WEBP_INLINE uint32_t NzCodeBits(uint32_t nz_coeffs, int nz, int dc_nz) {
+@@ -533,7 +501,7 @@ static int ParseResiduals(VP8Decoder* const dec,
+   if (!block->is_i4x4_) {    // parse DC
+     int16_t dc[16] = { 0 };
+     const int ctx = mb->nz_dc_ + left_mb->nz_dc_;
+-    const int nz = GetCoeffs(token_br, bands[1], ctx, q->y2_mat_, 0, dc);
++    const int nz = GetCoeffsAlt(token_br, bands[1], ctx, q->y2_mat_, 0, dc);
+     mb->nz_dc_ = left_mb->nz_dc_ = (nz > 0);
+     if (nz > 1) {   // more than just the DC -> perform the full transform
+       VP8TransformWHT(dc, dst);
+@@ -556,7 +524,7 @@ static int ParseResiduals(VP8Decoder* const dec,
+     uint32_t nz_coeffs = 0;
+     for (x = 0; x < 4; ++x) {
+       const int ctx = l + (tnz & 1);
+-      const int nz = GetCoeffs(token_br, ac_proba, ctx, q->y1_mat_, first, dst);
++      const int nz = GetCoeffsAlt(token_br, ac_proba, ctx, q->y1_mat_, first, dst);
+       l = (nz > first);
+       tnz = (tnz >> 1) | (l << 7);
+       nz_coeffs = NzCodeBits(nz_coeffs, nz, dst[0] != 0);
+@@ -577,7 +545,7 @@ static int ParseResiduals(VP8Decoder* const dec,
+       int l = lnz & 1;
+       for (x = 0; x < 2; ++x) {
+         const int ctx = l + (tnz & 1);
+-        const int nz = GetCoeffs(token_br, bands[2], ctx, q->uv_mat_, 0, dst);
++        const int nz = GetCoeffsAlt(token_br, bands[2], ctx, q->uv_mat_, 0, dst);
+         l = (nz > 0);
+         tnz = (tnz >> 1) | (l << 3);
+         nz_coeffs = NzCodeBits(nz_coeffs, nz, dst[0] != 0);
+diff --git a/src/utils/bit_reader_utils.c b/src/utils/bit_reader_utils.c
+index 46e558ba..b0fd60ab 100644
+--- a/src/utils/bit_reader_utils.c
++++ b/src/utils/bit_reader_utils.c
+@@ -106,7 +106,7 @@ void VP8LoadFinalBytes(VP8BitReader* const br) {
+ uint32_t VP8GetValue(VP8BitReader* const br, int bits, const char label[]) {
+   uint32_t v = 0;
+   while (bits-- > 0) {
+-    v |= VP8GetBit(br, 0x80, label) << bits;
++    v |= VP8GetBitAlt(br, 0x80, label) << bits;
+   }
+   return v;
+ }
