@@ -19,7 +19,7 @@ OUTPUT_IMAGE=#-DOUTPUT_IMAGE
 # Set this to -DINCREMENTAL to use the incremental decoder
 INCREMENTAL=-DINCREMENTAL
 
-COMPILE_FLAGS=-g -O2 -static ${OUTPUT_IMAGE} ${INCREMENTAL} -mavx2
+COMPILE_FLAGS=-g -O2 -static ${OUTPUT_IMAGE} ${INCREMENTAL} -mavx2 -fdebug-default-version=4
 
 ifdef OUTPUT_IMAGE
 UVWASI_RESOURCES=uvwasi-rt.c $(UVWASI_PATH)/out/cmake/libuvwasi_a.a $(UVWASI_PATH)/out/cmake/_deps/libuv-build/libuv_a.a -I $(UVWASI_PATH)/include/

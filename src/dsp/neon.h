@@ -25,7 +25,7 @@
 // Right now, some intrinsics functions seem slower, so we disable them
 // everywhere except newer clang/gcc or aarch64 where the inline assembly is
 // incompatible.
-#if LOCAL_CLANG_PREREQ(3, 8) || LOCAL_GCC_PREREQ(4, 9) || WEBP_AARCH64
+#if LOCAL_CLANG_PREREQ(3, 8) || LOCAL_GCC_PREREQ(4, 9) || WEBP_AARCH64 || defined(WEBP_USE_SIMDE)
 #define WEBP_USE_INTRINSICS   // use intrinsics when possible
 #endif
 

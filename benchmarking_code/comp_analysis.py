@@ -122,7 +122,8 @@ def generate_bar(data):
       err_val[i] = np.std(data[f][x_axis[i]][1], ddof=1) / np.sqrt(np.size(data[f][x_axis[i]][1]))
 
     print(x_axis)
-    print(y_axis)
+    if len(y_axis) == 4:
+      print(f"{y_axis[0]} {y_axis[1]} {y_axis[2]} {y_axis[3]}")
     if len(data.keys()) > 1:
       subplots[subplot_idx].bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
       for i in range(len(x_axis)):

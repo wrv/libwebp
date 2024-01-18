@@ -29,12 +29,15 @@ int WebPGetDecoderVersion(void) {
 //------------------------------------------------------------------------------
 // Signature and pointer-to-function for GetCoeffs() variants below.
 
+// This indirect call reduces WASM performance
+#if !defined(WEBP_WASM)
 typedef int (*GetCoeffsFunc)(VP8BitReader* const br,
                              const VP8BandProbas* const prob[],
                              int ctx, const quant_t dq, int n, int16_t* out);
 static volatile GetCoeffsFunc GetCoeffs = NULL;
 
 static void InitGetCoeffs(void);
+#endif
 
 //------------------------------------------------------------------------------
 // VP8Decoder
@@ -61,7 +64,9 @@ VP8Decoder* VP8New(void) {
     WebPGetWorkerInterface()->Init(&dec->worker_);
     dec->ready_ = 0;
     dec->num_parts_minus_one_ = 0;
+#if !defined(WEBP_WASM)
     InitGetCoeffs();
+#endif
   }
   return dec;
 }
@@ -440,7 +445,11 @@ static int GetLargeValue(VP8BitReader* const br, const uint8_t* const p) {
 }
 
 // Returns the position of the last non-zero coeff plus one
+#if !defined(WEBP_WASM)
 static int GetCoeffsFast(VP8BitReader* const br,
+#else
+static int GetCoeffs(VP8BitReader* const br,
+#endif
                          const VP8BandProbas* const prob[],
                          int ctx, const quant_t dq, int n, int16_t* out) {
   const uint8_t* p = prob[n]->probas_[ctx];
@@ -468,6 +477,7 @@ static int GetCoeffsFast(VP8BitReader* const br,
   return 16;
 }
 
+#if !defined(WEBP_WASM)
 // This version of GetCoeffs() uses VP8GetBitAlt() which is an alternate version
 // of VP8GetBitAlt() targeting specific platforms.
 static int GetCoeffsAlt(VP8BitReader* const br,
@@ -507,6 +517,7 @@ WEBP_DSP_INIT_FUNC(InitGetCoeffs) {
     GetCoeffs = GetCoeffsFast;
   }
 }
+#endif
 
 static WEBP_INLINE uint32_t NzCodeBits(uint32_t nz_coeffs, int nz, int dc_nz) {
   nz_coeffs <<= 2;

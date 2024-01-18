@@ -7,7 +7,7 @@ echo "Building WASM version of libwebp"
 curprefix=$(pwd)/libwebp_wasm
 mkdir -p ${curprefix}
 
-CFLAGS="-O2 -D_WASI_EMULATED_SIGNAL" \
+CFLAGS="-O2 -DWEBP_WASM -D_WASI_EMULATED_SIGNAL" \
 LDFLAGS="-L${WASI_SDK_PATH}/share/wasi-sysroot/lib \
 	-Wl,--no-entry \
 	-Wl,--export-all \

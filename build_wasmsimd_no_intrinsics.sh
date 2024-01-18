@@ -7,7 +7,7 @@ echo "Building WASM+SIMD version of libwebp (autovectorized; no intrinsics)"
 curprefix=$(pwd)/libwebp_wasmsimd_no_intrinsics
 mkdir -p ${curprefix}
 
-CFLAGS="-O2 -msimd128 -D_WASI_EMULATED_SIGNAL" \
+CFLAGS="-O2 -DWEBP_WASM -msimd128 -D_WASI_EMULATED_SIGNAL" \
 LDFLAGS="-L${WASI_SDK_PATH}/share/wasi-sysroot/lib \
 	-Wl,--no-entry \
 	-Wl,--export-all \
