@@ -19,7 +19,7 @@
 // The 3-coeff sparse transform in SSE2 is not really faster than the plain-C
 // one it seems => disable it by default. Uncomment the following to enable:
 #if !defined(USE_TRANSFORM_AC3)
-#define USE_TRANSFORM_AC3 0   // ALTERNATE_CODE
+#define USE_TRANSFORM_AC3 1   // ALTERNATE_CODE
 #endif
 
 #if defined(WEBP_USE_SIMDE)
@@ -201,7 +201,7 @@ static void Transform_SSE2(const int16_t* in, uint8_t* dst, int do_two) {
 
 #if (USE_TRANSFORM_AC3 == 1)
 #define MUL(a, b) (((a) * (b)) >> 16)
-static void TransformAC3(const int16_t* in, uint8_t* dst) {
+static void TransformAC3_SSE2(const int16_t* in, uint8_t* dst) {
   static const int kC1 = 20091 + (1 << 16);
   static const int kC2 = 35468;
   const __m128i A = _mm_set1_epi16(in[0] + 4);

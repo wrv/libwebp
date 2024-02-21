@@ -40,7 +40,6 @@ def generate_data():
 
   return data
 
-
 def generate_txt(data):
   """
   Generate output .txt file
@@ -80,7 +79,6 @@ def generate_txt(data):
       compout.write("  wasm2c with simd128 -> native with sse2       : " + str(simd2c_comp_t) + "\n")
       compout.write("  wasm2c without simd128 -> native without sse2 : " + str(no_simd2c_comp_t) + "\n")
 
-
 def generate_plt(data):
   """
   Generate output histogram .png file
@@ -88,10 +86,14 @@ def generate_plt(data):
     data = {filename: (average execution time, [raw data])}
   """
   for f in data.keys():
-    plt.hist(data[f]["native"][1], "auto", alpha=0.5, label="Native", edgecolor="black")
-    plt.hist(data[f]["nativesimd"][1], "auto", alpha=0.5, label="Native SIMD", edgecolor="black")
-    plt.hist(data[f]["wasm"][1], "auto", alpha=0.5, label="WASM", edgecolor="black")
-    plt.hist(data[f]["wasmsimd"][1], "auto", alpha=0.5, label="WASMSIMD", edgecolor="black")
+    if data[f]["native"][1].size > 1:
+      plt.hist(data[f]["native"][1], "auto", alpha=0.5, label="Native", edgecolor="black")
+    if data[f]["nativesimd"][1].size > 1:
+      plt.hist(data[f]["nativesimd"][1], "auto", alpha=0.5, label="Native SIMD", edgecolor="black")
+    if data[f]["wasm"][1].size > 1:
+      plt.hist(data[f]["wasm"][1], "auto", alpha=0.5, label="WASM", edgecolor="black")
+    if data[f]["wasmsimd"][1].size > 1:
+      plt.hist(data[f]["wasmsimd"][1], "auto", alpha=0.5, label="WASMSIMD", edgecolor="black")
     
     plt.xlabel("Time [s]")
     plt.ylabel("Frequency")
@@ -100,7 +102,6 @@ def generate_plt(data):
     plt_file_name = os.path.join(results_dir, f + "_analysis_comparison_new.png")
     plt.savefig(plt_file_name)
     plt.close()
-
 
 def generate_bar(data):
   """
@@ -117,13 +118,19 @@ def generate_bar(data):
     x_axis = test_types[:len(data[f])] # Cut out data tests that may not exist
     y_axis = np.zeros(len(data[f]))
     err_val = np.zeros(len(data[f]))
+    yaxis_str = ""
+    err_str = ""
     for i in range(len(data[f].values())):
       y_axis[i] = data[f][x_axis[i]][0]
       err_val[i] = np.std(data[f][x_axis[i]][1], ddof=1) / np.sqrt(np.size(data[f][x_axis[i]][1]))
-
+      yaxis_str += str(y_axis[i]) + ","
+      err_str += str(err_val[i]) + ","
+    # Trim trailing comma
+    yaxis_str = yaxis_str[:-1]
+    err_str = err_str[:-1]
     print(x_axis)
-    if len(y_axis) == 4:
-      print(f"{y_axis[0]} {y_axis[1]} {y_axis[2]} {y_axis[3]}")
+    print(yaxis_str)
+    print(err_str)
     if len(data.keys()) > 1:
       subplots[subplot_idx].bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
       for i in range(len(x_axis)):
@@ -133,7 +140,11 @@ def generate_bar(data):
       subplot_idx += 1
     else:
       # If only 1 file, then there are no subplots - it's just 1
-      subplots.bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
+      if np.logical_or.reduce(np.isnan(err_val)):
+        subplots.bar(x_axis, y_axis, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
+      else:
+        subplots.bar(x_axis, y_axis, yerr=err_val, align='center', alpha=0.5, ecolor='black', capsize=10, color=test_type_colors.values())
+      
       for i in range(len(x_axis)):
         subplots.text(i, y_axis[i], y_axis[i], rotation=60, rotation_mode='anchor')
       subplots.set(xlabel=f)
@@ -157,7 +168,6 @@ def generate_bar(data):
   plt.close()
   print(f"Plot saved to {plt_file_name}")
     
-
 def main():
   global input_dir
   global results_dir
@@ -175,7 +185,6 @@ def main():
   generate_plt(data)
   plt.close()
   generate_bar(data)
-
 
 if __name__ == "__main__":
   main()

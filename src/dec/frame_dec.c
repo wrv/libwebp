@@ -15,6 +15,10 @@
 #include "src/dec/vp8i_dec.h"
 #include "src/utils/utils.h"
 
+#if defined(WEBP_USE_SIMDE)
+#include "src/dsp/dsp_simde.h"
+#endif
+
 //------------------------------------------------------------------------------
 // Main reconstruction function.
 
@@ -42,6 +46,21 @@ static void Copy32b(uint8_t* const dst, const uint8_t* const src) {
 
 static WEBP_INLINE void DoTransform(uint32_t bits, const int16_t* const src,
                                     uint8_t* const dst) {
+#if defined(WEBP_USE_SIMDE) // Avoid indirect calls
+  switch (bits >> 30) {
+    case 3:
+      Transform_SSE2(src, dst, 0);
+      break;
+    case 2:
+      TransformAC3_SSE2(src, dst);
+      break;
+    case 1:
+      TransformDC_NEON(src, dst);
+      break;
+    default:
+      break;
+  }
+#else
   switch (bits >> 30) {
     case 3:
       VP8Transform(src, dst, 0);
@@ -55,10 +74,20 @@ static WEBP_INLINE void DoTransform(uint32_t bits, const int16_t* const src,
     default:
       break;
   }
+#endif
 }
 
 static void DoUVTransform(uint32_t bits, const int16_t* const src,
                           uint8_t* const dst) {
+#if defined(WEBP_USE_SIMDE) // Avoid indirect calls
+  if (bits & 0xff) {    // any non-zero coeff at all?
+    if (bits & 0xaa) {  // any non-zero AC coefficient?
+      TransformUV_C(src, dst);   // note we don't use the AC3 variant for U/V
+    } else {
+      TransformDCUV_C(src, dst);
+    }
+  }
+#else
   if (bits & 0xff) {    // any non-zero coeff at all?
     if (bits & 0xaa) {  // any non-zero AC coefficient?
       VP8TransformUV(src, dst);   // note we don't use the AC3 variant for U/V
@@ -66,6 +95,7 @@ static void DoUVTransform(uint32_t bits, const int16_t* const src,
       VP8TransformDCUV(src, dst);
     }
   }
+#endif
 }
 
 static void ReconstructRow(const VP8Decoder* const dec,
@@ -143,12 +173,79 @@ static void ReconstructRow(const VP8Decoder* const dec,
         // predict and add residuals for all 4x4 blocks in turn.
         for (n = 0; n < 16; ++n, bits <<= 2) {
           uint8_t* const dst = y_dst + kScan[n];
+#if defined(WEBP_USE_SIMDE)
+          switch(block->imodes_[n]) {
+            case 0:
+              DC4_NEON(dst);
+              break;
+            case 1:
+              TM4_SSE2(dst);
+              break;
+            case 2:
+              VE4_SSE2(dst);
+              break;
+            case 3:
+              HE4_C(dst);
+              break;
+            case 4:
+              RD4_SSE2(dst);
+              break;
+            case 5:
+              VR4_SSE2(dst);
+              break;
+            case 6:
+              LD4_SSE2(dst);
+              break;
+            case 7:
+              VL4_SSE2(dst);
+              break;
+            case 8:
+              HD4_C(dst);
+              break;
+            case 9:
+              HU4_C(dst);
+              break;
+            default:
+            // shouldn't be reached
+            break;
+          }
+#else
           VP8PredLuma4[block->imodes_[n]](dst);
+#endif
           DoTransform(bits, coeffs + n * 16, dst);
         }
       } else {    // 16x16
         const int pred_func = CheckMode(mb_x, mb_y, block->imodes_[0]);
+#if defined(WEBP_USE_SIMDE)
+      switch(pred_func) {
+        case 0:
+          DC16_SSE2(y_dst);
+          break;
+        case 1:
+          TM16_SSE2(y_dst);
+          break;
+        case 2:
+          VE16_SSE2(y_dst);
+          break;
+        case 3:
+          HE16_SSE41(y_dst);
+          break;
+        case 4:
+          DC16NoTop_SSE2(y_dst);
+          break;
+        case 5:
+          DC16NoLeft_SSE2(y_dst);
+          break;
+        case 6:
+          DC16NoTopLeft_SSE2(y_dst);
+          break;
+        default:
+          // shouldn't be reached
+          break;
+      }
+#else
         VP8PredLuma16[pred_func](y_dst);
+#endif
         if (bits != 0) {
           for (n = 0; n < 16; ++n, bits <<= 2) {
             DoTransform(bits, coeffs + n * 16, y_dst + kScan[n]);
@@ -159,8 +256,45 @@ static void ReconstructRow(const VP8Decoder* const dec,
         // Chroma
         const uint32_t bits_uv = block->non_zero_uv_;
         const int pred_func = CheckMode(mb_x, mb_y, block->uvmode_);
+#if defined(WEBP_USE_SIMDE)
+        // Directly call the function to avoid an indirect
+        switch (pred_func) {
+          case 0:
+            DC8uv_SSE2(u_dst);
+            DC8uv_SSE2(v_dst);
+            break;
+          case 1:
+            TM8uv_SSE2(u_dst);
+            TM8uv_SSE2(v_dst);
+            break;
+          case 2:
+            VE8uv_SSE2(u_dst);
+            VE8uv_SSE2(v_dst);
+            break;
+          case 3:
+            HE8uv_NEON(u_dst);
+            HE8uv_NEON(v_dst);
+            break;
+          case 4:
+            DC8uvNoTop_SSE2(u_dst);
+            DC8uvNoTop_SSE2(v_dst);
+            break;
+          case 5:
+            DC8uvNoLeft_SSE2(u_dst);
+            DC8uvNoLeft_SSE2(v_dst);
+            break;
+          case 6:
+            DC8uvNoTopLeft_SSE2(u_dst);
+            DC8uvNoTopLeft_SSE2(v_dst);
+            break;
+          default:
+            // Should not be reached
+            break;
+        }
+#else
         VP8PredChroma8[pred_func](u_dst);
         VP8PredChroma8[pred_func](v_dst);
+#endif
         DoUVTransform(bits_uv >> 0, coeffs + 16 * 16, u_dst);
         DoUVTransform(bits_uv >> 8, coeffs + 20 * 16, v_dst);
       }
@@ -212,6 +346,43 @@ static void DoFilter(const VP8Decoder* const dec, int mb_x, int mb_y) {
     return;
   }
   assert(limit >= 3);
+#if defined(WEBP_USE_SIMDE)
+  if (dec->filter_type_ == 1) {   // simple
+    if (mb_x > 0) {
+      SimpleHFilter16_SSE2(y_dst, y_bps, limit + 4);
+    }
+    if (f_info->f_inner_) {
+      SimpleHFilter16i_SSE2(y_dst, y_bps, limit);
+    }
+    if (mb_y > 0) {
+      SimpleVFilter16_SSE2(y_dst, y_bps, limit + 4);
+    }
+    if (f_info->f_inner_) {
+      SimpleVFilter16i_SSE2(y_dst, y_bps, limit);
+    }
+  } else {    // complex
+    const int uv_bps = dec->cache_uv_stride_;
+    uint8_t* const u_dst = dec->cache_u_ + cache_id * 8 * uv_bps + mb_x * 8;
+    uint8_t* const v_dst = dec->cache_v_ + cache_id * 8 * uv_bps + mb_x * 8;
+    const int hev_thresh = f_info->hev_thresh_;
+    if (mb_x > 0) {
+      HFilter16_SSE2(y_dst, y_bps, limit + 4, ilevel, hev_thresh);
+      HFilter8_SSE2(u_dst, v_dst, uv_bps, limit + 4, ilevel, hev_thresh);
+    }
+    if (f_info->f_inner_) {
+      HFilter16i_SSE2(y_dst, y_bps, limit, ilevel, hev_thresh);
+      HFilter8i_SSE2(u_dst, v_dst, uv_bps, limit, ilevel, hev_thresh);
+    }
+    if (mb_y > 0) {
+      VFilter16_SSE2(y_dst, y_bps, limit + 4, ilevel, hev_thresh);
+      VFilter8_SSE2(u_dst, v_dst, uv_bps, limit + 4, ilevel, hev_thresh);
+    }
+    if (f_info->f_inner_) {
+      VFilter16i_SSE2(y_dst, y_bps, limit, ilevel, hev_thresh);
+      VFilter8i_SSE2(u_dst, v_dst, uv_bps, limit, ilevel, hev_thresh);
+    }
+  }
+#else
   if (dec->filter_type_ == 1) {   // simple
     if (mb_x > 0) {
       VP8SimpleHFilter16(y_dst, y_bps, limit + 4);
@@ -247,6 +418,7 @@ static void DoFilter(const VP8Decoder* const dec, int mb_x, int mb_y) {
       VP8VFilter8i(u_dst, v_dst, uv_bps, limit, ilevel, hev_thresh);
     }
   }
+#endif
 }
 
 // Filter the decoded macroblock row (if needed)

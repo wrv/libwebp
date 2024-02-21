@@ -1,0 +1,123 @@
+; This is the original unmodified VP8GetBit function from the wasmsimd version, 
+; inlined in idec_dec.c to loop until reaching the end of the file. 
+; It has a harcoded probability of 0x79 (see the imul below)
+; 
+; This function has VP8LoadFinalBytes inlined, which the nativesimd version does not have. 
+
+
+  402e1d:	49 bb ff ff ff ff ff 	movabs $0xffffffffffffff,%r11
+  402e24:	ff ff 00 
+  402e27:	eb 3e                	jmp    402e67 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xf37>    ; our starting line that checks if we need VP8LoadNewBytes
+  402e29:	0f 1f 80 00 00 00 00 	nopl   0x0(%rax)
+
+; I32_CLZ -- bsr; we jump here whenever range != 0
+  402e30:	0f bd c8             	bsr    %eax,%ecx
+  402e33:	83 f1 1f             	xor    $0x1f,%ecx
+; we jump here whenever range == 0
+; NOTE from the spec about range - it should always be between the range 128 <= range <= 255 (https://www.rfc-editor.org/rfc/rfc6386.html page 18)
+  402e36:	83 f1 18             	xor    $0x18,%ecx                 ; both XORs above turn into an xor 7 whenever range != 0 aka (7 ^ BitsLog2Floor(range);)
+  402e39:	d3 e0                	shl    %cl,%eax                   ; range <<= shift;
+  402e3b:	29 cf                	sub    %ecx,%edi                  ; br->bits_ -= shift;
+  402e3d:	43 89 bc 0e 54 01 00 	mov    %edi,0x154(%r14,%r9,1)     ; store into br->bits_
+  402e44:	00 
+  402e45:	83 c0 ff             	add    $0xffffffff,%eax           ; range - 1;
+  402e48:	49 8b 0a             	mov    (%r10),%rcx                ; r10 has our br pointer
+  402e4b:	42 89 84 09 50 01 00 	mov    %eax,0x150(%rcx,%r9,1)     ; store into br->range_
+  402e52:	00 
+  402e53:	4d 8b 32             	mov    (%r10),%r14                ; r10 has our br pointer
+  402e56:	43 83 bc 0e 64 01 00 	cmpl   $0x0,0x164(%r14,%r9,1)     ; compare br->eof_ with 0? if so, we out
+  402e5d:	00 00 
+  402e5f:	89 c5                	mov    %eax,%ebp
+  ; check if weve reached the end of data 
+  402e61:	0f 85 fa 00 00 00    	jne    402f61 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0x1031> ; Done calling VP8GetBit
+
+; VP8LoadNewBytes
+  402e67:	85 ff                	test   %edi,%edi                        ; if (br->bits_ < 0) {
+  402e69:	0f 89 b1 00 00 00    	jns    402f20 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xff0>  ; jump to VP8GetBit
+
+;   if (br->buf_ < br->buf_max_) {
+  402e6f:	43 8b 84 0e 58 01 00 	mov    0x158(%r14,%r9,1),%eax           ; br->buf_ 
+  402e76:	00 
+  402e77:	43 3b 84 0e 60 01 00 	cmp    0x160(%r14,%r9,1),%eax           ; br->buf_max_
+  402e7e:	00 
+  402e7f:	73 2a                	jae    402eab <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xf7b>
+
+  402e81:	8d 48 07             	lea    0x7(%rax),%ecx                   ; br->buf_ += BITS >> 3; 
+  402e84:	43 89 8c 0e 58 01 00 	mov    %ecx,0x158(%r14,%r9,1)           ; i32_store(&instance->w2c_memory, (u64)(var_i0) + 344, var_i1);
+  402e8b:	00 
+  402e8c:	49 8b 0a             	mov    (%r10),%rcx                      ; r10 has our br pointer
+  402e8f:	48 8b 04 01          	mov    (%rcx,%rax,1),%rax               ; in_bits is loaded into rax
+  402e93:	4c 21 d8             	and    %r11,%rax                        ; in_bits is ANDed with r11, which is -1
+  402e96:	48 0f c8             	bswap  %rax                             ; bits = BSwap64(in_bits);
+  402e99:	4a 0f a4 84 09 48 01 	shld   $0x38,%rax,0x148(%rcx,%r9,1)     ; bits >>= 64 - BITS;
+  402ea0:	00 00 38 
+  402ea3:	83 c7 38             	add    $0x38,%edi                       ; br->bits_ += BITS;
+  402ea6:	4d 8b 32             	mov    (%r10),%r14                      ; r10 has our br pointer
+  402ea9:	eb 75                	jmp    402f20 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xff0>
+
+; VP8LoadFinalBytes
+  402eab:	43 8b 44 06 10       	mov    0x10(%r14,%r8,1),%eax            ; br->buf_
+  402eb0:	43 3b 44 06 14       	cmp    0x14(%r14,%r8,1),%eax            ; br->buf_end_
+  if (br->buf_ < br->buf_end_) {
+  402eb5:	73 29                	jae    402ee0 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xfb0>
+  402eb7:	8d 48 01             	lea    0x1(%rax),%ecx                   ; *br->buf_++
+  402eba:	43 89 4c 06 10       	mov    %ecx,0x10(%r14,%r8,1)            ; store into br->buf_
+  402ebf:	49 8b 0a             	mov    (%r10),%rcx                      ; r10 has our br pointer
+  402ec2:	42 83 44 01 0c 08    	addl   $0x8,0xc(%rcx,%r8,1)             ; br->bits_ += 8;
+  402ec8:	49 8b 0a             	mov    (%r10),%rcx                      ; r10 has our br pointer
+  402ecb:	4a 8b 14 01          	mov    (%rcx,%r8,1),%rdx                ; load br->value_
+  402ecf:	48 c1 e2 08          	shl    $0x8,%rdx                        ; (br->value_ << 8)
+  402ed3:	0f b6 04 01          	movzbl (%rcx,%rax,1),%eax               ; (bit_t)(*br->buf_++)
+  402ed7:	48 09 d0             	or     %rdx,%rax                        ; (bit_t)(*br->buf_++) | (br->value_ << 8);
+  402eda:	4a 89 04 01          	mov    %rax,(%rcx,%r8,1)                ; store above result into br->value_ 
+  402ede:	eb 2d                	jmp    402f0d <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xfdd>
+  ; } else {
+  402ee0:	43 83 7c 06 1c 00    	cmpl   $0x0,0x1c(%r14,%r8,1)
+  402ee6:	74 0b                	je     402ef3 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xfc3>
+  402ee8:	43 c7 44 06 0c 00 00 	movl   $0x0,0xc(%r14,%r8,1)       ; br->bits_ = 0; 
+  402eef:	00 00 
+  402ef1:	eb 1a                	jmp    402f0d <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xfdd>
+  ; } else if (!br->eof_) {
+  402ef3:	43 c7 44 06 1c 01 00 	movl   $0x1,0x1c(%r14,%r8,1)      ; br->eof_ = 1;
+  402efa:	00 00 
+  402efc:	49 8b 02             	mov    (%r10),%rax                ; r10 has our br pointer
+  402eff:	4a c1 24 00 08       	shlq   $0x8,(%rax,%r8,1)          ; br->value_ <<= 8;
+  402f04:	49 8b 02             	mov    (%r10),%rax                ; r10 has our br pointer
+  402f07:	42 83 44 00 0c 08    	addl   $0x8,0xc(%rax,%r8,1)       ; br->bits_ += 8;
+
+; VP8GetBit
+  402f0d:	4d 8b 32             	mov    (%r10),%r14                ; r10 has our br pointer
+  402f10:	43 8b bc 0e 54 01 00 	mov    0x154(%r14,%r9,1),%edi     ; load br->bits_
+  402f17:	00 
+  402f18:	0f 1f 84 00 00 00 00 	nopl   0x0(%rax,%rax,1)
+  402f1f:	00 
+
+; also VP8GetBit
+  402f20:	4b 8b 14 06          	mov    (%r14,%r8,1),%rdx  ; var_j1 = i64_load(&instance->w2c_memory, (u64)(var_i1));
+  402f24:	89 f9                	mov    %edi,%ecx          ; cl contains br->bits_;
+  402f26:	83 e1 3f             	and    $0x3f,%ecx         ; AND br->bits_ to 63 bits?
+  402f29:	48 89 d3             	mov    %rdx,%rbx          ; rbx = br->value_;
+  402f2c:	48 d3 eb             	shr    %cl,%rbx           ; const range_t value = (range_t)(br->value_ >> pos);
+
+  402f2f:	6b f5 79             	imul   $0x79,%ebp,%esi    ; (range * prob)
+  402f32:	c1 ee 08             	shr    $0x8,%esi          ; split = (range * prob) >> 8;
+  402f35:	8d 46 01             	lea    0x1(%rsi),%eax     ; split + 1, which is used in either fork. Common subexpression elimination
+  402f38:	39 de                	cmp    %ebx,%esi          ; const int bit = (value > split); or var_i0 = var_i0 >= var_i1;
+  402f3a:	73 13                	jae    402f4f <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0x101f>
+; if (bit) {
+  402f3c:	89 c0                	mov    %eax,%eax          ; this clears out the top bits
+  402f3e:	48 d3 e0             	shl    %cl,%rax           ; val = (bit_t)(split + 1) << pos
+  402f41:	48 29 c2             	sub    %rax,%rdx          ; br->value - val
+  402f44:	4b 89 14 06          	mov    %rdx,(%r14,%r8,1)  ; go ahead and store aka br->value_ -= (bit_t)(split + 1) << pos;  aka i64_store(&instance->w2c_memory, (u64)(var_i0), var_j1);
+  402f48:	29 f5                	sub    %esi,%ebp          ; range -= split;
+  402f4a:	4d 8b 32             	mov    (%r10),%r14        ; r10 has our br pointer
+  402f4d:	89 e8                	mov    %ebp,%eax          ; move range to eax
+; }
+  402f4f:	85 c0                	test   %eax,%eax          ; eax is also range; -- this is now I32_CLZ
+  402f51:	0f 85 d9 fe ff ff    	jne    402e30 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xf00>
+
+; this means the value is 0, so I32_CLZ sets ecx to 32. __builtin_clz is undefined behavior with input 0 lol
+; #define I32_CLZ(x) ((x) ? __builtin_clz(x) : 32) 
+  402f57:	b9 20 00 00 00       	mov    $0x20,%ecx         ; 
+  402f5c:	e9 d5 fe ff ff       	jmp    402e36 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xf06>
+

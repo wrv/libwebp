@@ -1,0 +1,70 @@
+; This version uses an alias for br->range_ 
+; We have the following line at the top:  range_t* tmp = &(br->range_);
+; all accesses go through tmp. 
+; No change whatsoever to the nativesimd version
+
+  ; rbx is our br pointer
+  4028b3:	44 8b 73 18          	mov    0x18(%rbx),%r14d       ; r14d = br->range_
+  4028b7:	8b 53 1c             	mov    0x1c(%rbx),%edx        ; edx = br->bits_
+  4028ba:	eb 50                	jmp    40290c <IDecode+0xcc>  ; VP8GetBit
+  4028bc:	0f 1f 40 00          	nopl   0x0(%rax)
+
+; VP8GetBit
+  4028c0:	48 8b 7b 10          	mov    0x10(%rbx),%rdi      ; rdi = br->value_
+
+; other VP8GetBit entrance
+  4028c4:	41 6b f6 79          	imul   $0x79,%r14d,%esi     ; (range * prob)
+  4028c8:	49 89 f8             	mov    %rdi,%r8             ; r8 = br->value_
+  4028cb:	89 d1                	mov    %edx,%ecx            ; pos = br->bits
+  4028cd:	49 d3 e8             	shr    %cl,%r8              ; r8 = value = br->value_ >> pos
+  4028d0:	c1 ee 08             	shr    $0x8,%esi            ; split = (range * prob) >> 8;
+  4028d3:	8d 46 01             	lea    0x1(%rsi),%eax       ; eax = split + 1
+  4028d6:	44 39 c6             	cmp    %r8d,%esi            ; value > split
+  4028d9:	73 0f                	jae    4028ea <IDecode+0xaa>
+;     if (bit) {
+  4028db:	48 d3 e0             	shl    %cl,%rax
+  4028de:	48 29 c7             	sub    %rax,%rdi
+  4028e1:	44 89 f0             	mov    %r14d,%eax
+  4028e4:	48 89 7b 10          	mov    %rdi,0x10(%rbx)
+  4028e8:	29 f0                	sub    %esi,%eax
+
+  4028ea:	0f bd c8             	bsr    %eax,%ecx            ; BitsLog2Floor(range)
+  4028ed:	44 8b 4b 38          	mov    0x38(%rbx),%r9d      ; 
+  4028f1:	83 f1 07             	xor    $0x7,%ecx
+  4028f4:	d3 e0                	shl    %cl,%eax
+  4028f6:	29 ca                	sub    %ecx,%edx
+  4028f8:	44 8d 70 ff          	lea    -0x1(%rax),%r14d
+
+  4028fc:	89 53 1c             	mov    %edx,0x1c(%rbx)
+  4028ff:	44 89 73 18          	mov    %r14d,0x18(%rbx)
+  402903:	45 85 c9             	test   %r9d,%r9d
+  402906:	0f 85 4c 02 00 00    	jne    402b58 <IDecode+0x318>
+
+  40290c:	85 d2                	test   %edx,%edx
+  40290e:	79 b0                	jns    4028c0 <IDecode+0x80>    ; br->bits_ < 0
+; VP8LoadNewBytes
+  402910:	48 8b 43 20          	mov    0x20(%rbx),%rax
+  402914:	48 3b 43 30          	cmp    0x30(%rbx),%rax
+  402918:	0f 83 1a 04 00 00    	jae    402d38 <IDecode+0x4f8>
+
+  40291e:	48 8b 08             	mov    (%rax),%rcx
+  402921:	48 8b 7b 10          	mov    0x10(%rbx),%rdi
+  402925:	48 83 c0 07          	add    $0x7,%rax
+  402929:	83 c2 38             	add    $0x38,%edx
+  40292c:	48 89 43 20          	mov    %rax,0x20(%rbx)
+  402930:	48 89 c8             	mov    %rcx,%rax
+  402933:	48 c1 e7 38          	shl    $0x38,%rdi
+  402937:	48 0f c8             	bswap  %rax
+  40293a:	48 c1 e8 08          	shr    $0x8,%rax
+  40293e:	48 09 c7             	or     %rax,%rdi
+  402941:	48 89 7b 10          	mov    %rdi,0x10(%rbx)
+  402945:	e9 7a ff ff ff       	jmp    4028c4 <IDecode+0x84>
+
+...
+
+; VP8LoadFinalBytes
+  402d38:	4c 89 ef             	mov    %r13,%rdi
+  402d3b:	e8 f0 4c 02 00       	call   427a30 <VP8LoadFinalBytes>
+  402d40:	48 8b 7b 10          	mov    0x10(%rbx),%rdi
+  402d44:	8b 53 1c             	mov    0x1c(%rbx),%edx
+  402d47:	e9 78 fb ff ff       	jmp    4028c4 <IDecode+0x84>

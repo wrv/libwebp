@@ -1,0 +1,99 @@
+  402c9b:	43 8b 44 31 18       	mov    0x18(%r9,%r14,1),%eax
+  402ca0:	43 8b 6c 31 1c       	mov    0x1c(%r9,%r14,1),%ebp
+  402ca5:	4c 8b 54 24 20       	mov    0x20(%rsp),%r10
+  402caa:	49 bb ff ff ff ff ff 	movabs $0xffffffffffffff,%r11
+  402cb1:	ff ff 00 
+  402cb4:	eb 38                	jmp    402cee <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xdbe>
+  402cb6:	66 2e 0f 1f 84 00 00 	cs nopw 0x0(%rax,%rax,1)
+  402cbd:	00 00 00 
+
+; Jump from I32_CLZ zero check -- we get here if not zero
+  402cc0:	0f bd cf             	bsr    %edi,%ecx
+  402cc3:	83 f1 1f             	xor    $0x1f,%ecx
+; Jump here if range is 0
+  402cc6:	83 f1 18             	xor    $0x18,%ecx
+  402cc9:	d3 e7                	shl    %cl,%edi
+  402ccb:	29 cd                	sub    %ecx,%ebp
+  402ccd:	43 89 6c 0e 1c       	mov    %ebp,0x1c(%r14,%r9,1)
+  402cd2:	83 c7 ff             	add    $0xffffffff,%edi
+  402cd5:	49 8b 02             	mov    (%r10),%rax
+  402cd8:	42 89 7c 08 18       	mov    %edi,0x18(%rax,%r9,1)
+  402cdd:	4d 8b 32             	mov    (%r10),%r14
+  402ce0:	43 83 7c 0e 2c 00    	cmpl   $0x0,0x2c(%r14,%r9,1)
+  402ce6:	89 f8                	mov    %edi,%eax
+  402ce8:	0f 85 ee 00 00 00    	jne    402ddc <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xeac>    ; Jump to done
+
+  402cee:	85 ed                	test   %ebp,%ebp
+  402cf0:	0f 89 9a 00 00 00    	jns    402d90 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xe60>    ; Jump to VP8GetBit
+; VP8LoadNewBytes
+  402cf6:	43 8b 4c 0e 20       	mov    0x20(%r14,%r9,1),%ecx
+  402cfb:	43 3b 4c 0e 28       	cmp    0x28(%r14,%r9,1),%ecx
+  402d00:	73 24                	jae    402d26 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xdf6>
+; VP8LoadNewBytes
+  402d02:	8d 51 07             	lea    0x7(%rcx),%edx
+  402d05:	43 89 54 0e 20       	mov    %edx,0x20(%r14,%r9,1)
+  402d0a:	49 8b 12             	mov    (%r10),%rdx
+  402d0d:	48 8b 0c 0a          	mov    (%rdx,%rcx,1),%rcx
+  402d11:	4c 21 d9             	and    %r11,%rcx
+  402d14:	48 0f c9             	bswap  %rcx
+  402d17:	4a 0f a4 4c 0a 10 38 	shld   $0x38,%rcx,0x10(%rdx,%r9,1)
+  402d1e:	83 c5 38             	add    $0x38,%ebp
+  402d21:	4d 8b 32             	mov    (%r10),%r14
+  402d24:	eb 6a                	jmp    402d90 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xe60>
+; VP8LoadFinalBytes
+  402d26:	43 8b 4c 06 10       	mov    0x10(%r14,%r8,1),%ecx
+  402d2b:	43 3b 4c 06 14       	cmp    0x14(%r14,%r8,1),%ecx
+  402d30:	73 29                	jae    402d5b <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xe2b>
+
+  402d32:	8d 51 01             	lea    0x1(%rcx),%edx
+  402d35:	43 89 54 06 10       	mov    %edx,0x10(%r14,%r8,1)
+  402d3a:	49 8b 12             	mov    (%r10),%rdx
+  402d3d:	42 83 44 02 0c 08    	addl   $0x8,0xc(%rdx,%r8,1)
+  402d43:	49 8b 12             	mov    (%r10),%rdx
+  402d46:	4a 8b 34 02          	mov    (%rdx,%r8,1),%rsi
+  402d4a:	48 c1 e6 08          	shl    $0x8,%rsi
+  402d4e:	0f b6 0c 0a          	movzbl (%rdx,%rcx,1),%ecx
+  402d52:	48 09 f1             	or     %rsi,%rcx
+  402d55:	4a 89 0c 02          	mov    %rcx,(%rdx,%r8,1)
+  402d59:	eb 2d                	jmp    402d88 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xe58>
+; 
+  402d5b:	43 83 7c 06 1c 00    	cmpl   $0x0,0x1c(%r14,%r8,1)
+  402d61:	74 0b                	je     402d6e <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xe3e>
+  402d63:	43 c7 44 06 0c 00 00 	movl   $0x0,0xc(%r14,%r8,1)
+  402d6a:	00 00 
+
+  402d6c:	eb 1a                	jmp    402d88 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xe58>
+
+  402d6e:	43 c7 44 06 1c 01 00 	movl   $0x1,0x1c(%r14,%r8,1)
+  402d75:	00 00 
+  402d77:	49 8b 0a             	mov    (%r10),%rcx
+  402d7a:	4a c1 24 01 08       	shlq   $0x8,(%rcx,%r8,1)
+  402d7f:	49 8b 0a             	mov    (%r10),%rcx
+  402d82:	42 83 44 01 0c 08    	addl   $0x8,0xc(%rcx,%r8,1)
+; VP8GetBit
+  402d88:	4d 8b 32             	mov    (%r10),%r14
+  402d8b:	43 8b 6c 0e 1c       	mov    0x1c(%r14,%r9,1),%ebp
+; VP8GetBit
+  402d90:	4b 8b 1c 06          	mov    (%r14,%r8,1),%rbx
+  402d94:	89 e9                	mov    %ebp,%ecx
+  402d96:	83 e1 3f             	and    $0x3f,%ecx
+  402d99:	48 89 da             	mov    %rbx,%rdx
+  402d9c:	48 d3 ea             	shr    %cl,%rdx
+  402d9f:	6b f0 79             	imul   $0x79,%eax,%esi
+  402da2:	c1 ee 08             	shr    $0x8,%esi
+  402da5:	8d 7e 01             	lea    0x1(%rsi),%edi
+  402da8:	39 d6                	cmp    %edx,%esi
+  402daa:	73 13                	jae    402dbf <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xe8f>
+  402dac:	89 ff                	mov    %edi,%edi
+  402dae:	48 d3 e7             	shl    %cl,%rdi
+  402db1:	48 29 fb             	sub    %rdi,%rbx
+  402db4:	4b 89 1c 06          	mov    %rbx,(%r14,%r8,1)
+  402db8:	29 f0                	sub    %esi,%eax
+  402dba:	4d 8b 32             	mov    (%r10),%r14
+  402dbd:	89 c7                	mov    %eax,%edi
+
+; Prepare for I32_CLZ - edi has range value
+  402dbf:	85 ff                	test   %edi,%edi
+  402dc1:	0f 85 f9 fe ff ff    	jne    402cc0 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xd90>
+  402dc7:	b9 20 00 00 00       	mov    $0x20,%ecx
+  402dcc:	e9 f5 fe ff ff       	jmp    402cc6 <w2c_decode__webp__wasmsimd_DecodeWebpImage_0+0xd96>

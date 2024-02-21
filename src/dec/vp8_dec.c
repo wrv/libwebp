@@ -20,6 +20,10 @@
 #include "src/utils/bit_reader_inl_utils.h"
 #include "src/utils/utils.h"
 
+#if defined(WEBP_USE_SIMDE)
+#include "src/dsp/dsp_simde.h"
+#endif
+
 //------------------------------------------------------------------------------
 
 int WebPGetDecoderVersion(void) {
@@ -547,7 +551,11 @@ static int ParseResiduals(VP8Decoder* const dec,
     const int nz = GetCoeffs(token_br, bands[1], ctx, q->y2_mat_, 0, dc);
     mb->nz_dc_ = left_mb->nz_dc_ = (nz > 0);
     if (nz > 1) {   // more than just the DC -> perform the full transform
+#if defined(WEBP_USE_SIMDE)
+      TransformWHT_NEON(dc, dst);
+#else
       VP8TransformWHT(dc, dst);
+#endif
     } else {        // only DC is non-zero -> inlined simplified transform
       int i;
       const int dc0 = (dc[0] + 3) >> 3;

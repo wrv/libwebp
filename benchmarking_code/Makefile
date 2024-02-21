@@ -2,7 +2,7 @@ CC=clang
 OUT_DIR=bin
 WASI_SDK_PATH=/home/wrv/research/wasmperf/wasi-sdk-20.0
 SIMDE_PATH=/home/wrv/research/wasmperf/simde-0.7.6
-WABT_PATH=/home/wrv/research/wasmperf/wabt-1.0.34
+WABT_PATH=/home/wrv/research/wasmperf/wabt_src
 UVWASI_PATH=/home/wrv/research/wasmperf/uvwasi-0.0.19
 
 WASI_LDFLAGS=-Wl,--export=malloc,--export=DecodeWebpImage -Wl,--no-entry -Wl,--growable-table -Wl,--stack-first -Wl,-z,stack-size=1048576
@@ -11,11 +11,11 @@ WASI_FLAGS=-mexec-model=reactor --sysroot ${WASI_SDK_PATH}/share/wasi-sysroot
 WASI_SIMD_FLAGS=-msimd128 -I${SIMDE_PATH}
 
 WASM2C_BIN=${WABT_PATH}/bin/wasm2c
-WASM2C_DEP=${WABT_PATH}/share/wabt/wasm2c/wasm-rt-impl.c ${WABT_PATH}/share/wabt/wasm2c/wasm-rt-exceptions-impl.c -I${WABT_PATH}/include
+WASM2C_DEP=${WABT_PATH}/wasm2c/wasm-rt-impl.c ${WABT_PATH}/wasm2c/wasm-rt-exceptions-impl.c -I${WABT_PATH}/include -I${WABT_PATH}/wasm2c -DWASM2C_NONCONFORMING_LOAD_ELISION
 WASMSIMD_FLAGS=-DENABLE_SIMD -I${SIMDE_PATH}
 
 # Set this to -DOUTPUT_IMAGE to produce an output file
-OUTPUT_IMAGE=#-DOUTPUT_IMAGE
+OUTPUT_IMAGE=-DOUTPUT_IMAGE
 # Set this to -DINCREMENTAL to use the incremental decoder
 INCREMENTAL=-DINCREMENTAL
 

@@ -1,0 +1,3 @@
+; The VP8GetBit function for WASMSIMD with an aliased br->range 
+; is exactly the same as the original, so we don't copy it and instead
+; include this note for documentation.

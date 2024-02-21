@@ -1,0 +1,70 @@
+; This is the original unmodified VP8GetBit function from the nativesimd version, 
+; inlined in idec_dec.c to loop until reaching the end of the file. 
+; It has a harcoded probability of 0x79 (see the imul below)
+
+
+
+
+
+  402b73:	eb 5c                	jmp    402bd1 <IDecode+0x391>   ; our starting line that checks if we need VP8LoadNewBytes
+  402b75:	0f 1f 00             	nopl   (%rax)
+
+; VP8GetBit
+  402b78:	48 8b bb b8 01 00 00 	mov    0x1b8(%rbx),%rdi       ; load up br->value_
+
+; other VP8GetBit entrance
+  402b7f:	41 6b f5 79          	imul   $0x79,%r13d,%esi       ; (range * prob)
+  402b83:	49 89 f8             	mov    %rdi,%r8               ; r8 has br->value_
+  402b86:	89 d1                	mov    %edx,%ecx              ; pos = br->bits_
+  402b88:	49 d3 e8             	shr    %cl,%r8                ; const range_t value = (range_t)(br->value_ >> pos);
+  402b8b:	c1 ee 08             	shr    $0x8,%esi              ; split = (range * prob) >> 8;
+  402b8e:	8d 46 01             	lea    0x1(%rsi),%eax         ; eax = split + 1 ; some CSE
+  402b91:	44 39 c6             	cmp    %r8d,%esi              ; (value > split)
+  402b94:	73 12                	jae    402ba8 <IDecode+0x368>
+;     if (bit) {
+  402b96:	48 d3 e0             	shl    %cl,%rax               ; (bit_t)(split + 1) << pos;
+  402b99:	48 29 c7             	sub    %rax,%rdi              ; br->value_ -= (bit_t)(split + 1) << pos;
+  402b9c:	44 89 e8             	mov    %r13d,%eax             ; eax has the range value now 
+  402b9f:	48 89 bb b8 01 00 00 	mov    %rdi,0x1b8(%rbx)       ; do the store to br->value_
+  402ba6:	29 f0                	sub    %esi,%eax              ; range -= split;
+
+  402ba8:	0f bd c8             	bsr    %eax,%ecx              ; no zero check for eax?!? 
+  402bab:	83 f1 07             	xor    $0x7,%ecx              ; shift = 7 ^ BitsLog2Floor(range);
+  402bae:	29 ca                	sub    %ecx,%edx              ; br->bits_ -= shift;
+  402bb0:	d3 e0                	shl    %cl,%eax               ; range <<= shift;
+  402bb2:	8b 8b e0 01 00 00    	mov    0x1e0(%rbx),%ecx       ; br->eof_
+  402bb8:	44 8d 68 ff          	lea    -0x1(%rax),%r13d       ; range = range - 1;
+
+  402bbc:	89 93 c4 01 00 00    	mov    %edx,0x1c4(%rbx)       ; br->bits_
+  402bc2:	44 89 ab c0 01 00 00 	mov    %r13d,0x1c0(%rbx)      ; do the store of br->range_
+  402bc9:	85 c9                	test   %ecx,%ecx              ; check if we've reach the end of bits 
+  402bcb:	0f 85 7f fd ff ff    	jne    402950 <IDecode+0x110> ; if so, then we're out 
+
+  402bd1:	85 d2                	test   %edx,%edx              ; if (br->bits_ < 0)
+  402bd3:	79 a3                	jns    402b78 <IDecode+0x338> ; all good - continue in VP8GetBit
+; VP8LoadNewBytes
+  402bd5:	48 8b 83 c8 01 00 00 	mov    0x1c8(%rbx),%rax       ; br->buf_
+  402bdc:	48 3b 83 d8 01 00 00 	cmp    0x1d8(%rbx),%rax       ; br->buf_max_
+  402be3:	0f 83 2f 01 00 00    	jae    402d18 <IDecode+0x4d8> ; gotta go to VP8LoadFinalBytes
+
+  402be9:	48 8b 08             	mov    (%rax),%rcx            ; memcpy(&in_bits, br->buf_, sizeof(in_bits));
+  402bec:	48 8b bb b8 01 00 00 	mov    0x1b8(%rbx),%rdi       ; load up br->value_
+  402bf3:	48 83 c0 07          	add    $0x7,%rax              ; BITS >> 3;
+  402bf7:	83 c2 38             	add    $0x38,%edx             ; br->bits_ += BITS;
+  402bfa:	48 89 83 c8 01 00 00 	mov    %rax,0x1c8(%rbx)       ; br->buf_ += BITS >> 3;
+  402c01:	48 89 c8             	mov    %rcx,%rax              ; copy over in_bits to rax
+  402c04:	48 c1 e7 38          	shl    $0x38,%rdi             ; br->value_ << BITS
+  402c08:	48 0f c8             	bswap  %rax                   ; BSwap64(in_bits);
+  402c0b:	48 c1 e8 08          	shr    $0x8,%rax              ; bits >>= 64 - BITS;
+  402c0f:	48 09 c7             	or     %rax,%rdi              ; value_ = bits | (br->value_ << BITS);
+  402c12:	48 89 bb b8 01 00 00 	mov    %rdi,0x1b8(%rbx)       ; br->value_ = value_
+  402c19:	e9 61 ff ff ff       	jmp    402b7f <IDecode+0x33f> ; can continue in VP8GetBits
+
+...
+
+; we call into VP8LoadFinalBytes
+  402d18:	48 89 ef             	mov    %rbp,%rdi
+  402d1b:	e8 10 4d 02 00       	call   427a30 <VP8LoadFinalBytes>
+  402d20:	48 8b bb b8 01 00 00 	mov    0x1b8(%rbx),%rdi         ; range = br->range_
+  402d27:	8b 93 c4 01 00 00    	mov    0x1c4(%rbx),%edx         ; edx = br->bits_
+  402d2d:	e9 4d fe ff ff       	jmp    402b7f <IDecode+0x33f>   ; can continue in VP8GetBits
